@@ -1,0 +1,15 @@
+{
+  "lesson": {"slug": "demo-quiz", "title": "Демо · Системы счисления", "grp": "Демо"},
+  "sections": [
+    {"name": "Тест 1", "tasks": [
+      {"title": "Вопрос 1", "statement": "Переведите число в двоичную систему счисления.\n\n**10<sub>10</sub> = X<sub>2</sub>**",
+       "fields": [{"label": "X₂", "accept": ["1010"]}]},
+      {"title": "Вопрос 2", "statement": "Переведите число быстрым способом.\n\n**17<sub>8</sub> = X<sub>2</sub> = X<sub>16</sub>**",
+       "fields": [{"label": "X₂", "accept": ["1111"]}, {"label": "X₁₆", "accept": ["F"]}]}
+    ]},
+    {"name": "Задача", "tasks": [
+      {"title": "Проверка", "statement": "Верно ли, что 11<sub>2</sub> = 3<sub>10</sub>? Ответьте «да» или «нет».",
+       "fields": [{"label": "Ответ", "accept": ["да", "верно"]}]}
+    ]}
+  ]
+}

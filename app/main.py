@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import dashboard, db, groups, judge
+from . import answers, dashboard, db, groups, judge
 from .docx_import import parse_docx
 
 db.init()
@@ -48,6 +48,7 @@ app.add_middleware(SessionMiddleware, secret_key=SECRET, max_age=60 * 60 * 24 * 
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 templates.env.filters["md"] = lambda s: md.markdown(s or "", extensions=["fenced_code", "tables", "nl2br"])
 templates.env.filters["fromjson"] = json.loads
+templates.env.filters["answers_editable"] = answers.to_editable
 templates.env.filters["no_grp"] = lambda title, grp: re.sub(rf"^\s*{re.escape(grp)}\s*[·\-—:]\s*", "", title) if grp else title
 
 VERDICTS = {
@@ -306,7 +307,21 @@ def lesson_page(request: Request, slug: str):
         request.session["grp"] = lesson["grp"]
     tasks = q("SELECT * FROM tasks WHERE lesson_id=? ORDER BY pos, id", lesson["id"])
     best = best_results(st["id"], [t["id"] for t in tasks])
-    return render(request, "lesson.html", lesson=lesson, tasks=tasks, best=best)
+    sections = list(dict.fromkeys(t["section"] for t in tasks))  # вкладки урока в порядке задач
+    last = {}  # task_id -> последняя посылка (для тестов с ответом показываем, что ученик ввёл)
+    for t in tasks:
+        if t["kind"] == "answer":
+            r = q("SELECT * FROM submissions WHERE student_id=? AND task_id=? ORDER BY id DESC LIMIT 1", st["id"], t["id"], one=True)
+            if r:
+                last[t["id"]] = {"sub": r, "details": json.loads(r["details"] or "[]"),
+                                 "attempts": q("SELECT COUNT(*) c FROM submissions WHERE student_id=? AND task_id=?",
+                                               st["id"], t["id"], one=True)["c"]}
+    tab = request.query_params.get("tab")
+    if tab not in sections:
+        tab = sections[0] if sections else ""
+    return render(request, "lesson.html", lesson=lesson, tasks=tasks, best=best, sections=sections, tab=tab,
+                  last=last, fields={t["id"]: answers.fields(t) for t in tasks if t["kind"] == "answer"},
+                  error=request.query_params.get("error", ""))
 
 
 @app.get("/lesson/{slug}/task/{task_id}", response_class=HTMLResponse)
@@ -320,12 +335,44 @@ def task_page(request: Request, slug: str, task_id: int, error: str = ""):
     task = q("SELECT * FROM tasks WHERE id=? AND lesson_id=?", task_id, lesson["id"], one=True)
     if not task:
         raise HTTPException(404)
+    if task["kind"] == "answer":
+        return go(f"/lesson/{slug}?tab={quote(task['section'])}#t{task_id}")
     tasks = q("SELECT id, title FROM tasks WHERE lesson_id=? ORDER BY pos, id", lesson["id"])
     samples = q("SELECT * FROM tests WHERE task_id=? AND is_sample=1 ORDER BY pos, id", task_id)
     subs = q("SELECT * FROM submissions WHERE student_id=? AND task_id=? ORDER BY id DESC", st["id"], task_id)
     last_code = subs[0]["code"] if subs else ""
     return render(request, "task.html", lesson=lesson, task=task, tasks=tasks, samples=samples, subs=subs,
                   last_code=last_code, error=error)
+
+
+@app.post("/lesson/{slug}/task/{task_id}/answer")
+async def submit_answer(request: Request, slug: str, task_id: int):
+    """Ответ на вопрос теста: проверяется сразу, без очереди."""
+    lesson = lesson_by_slug(slug, request)
+    st = current_student(request)
+    if not st:
+        return go(f"/lesson/{slug}")
+    task = q("SELECT * FROM tasks WHERE id=? AND lesson_id=? AND kind='answer'", task_id, lesson["id"], one=True)
+    if not task:
+        raise HTTPException(404)
+    back = f"/lesson/{slug}?tab={quote(task['section'])}"
+    if gate := student_gate(request, st, lesson):
+        return go(back) if gate.status_code == 403 else gate
+    form = await request.form()
+    given = [str(form.get(f"a{i}", "")) for i in range(len(answers.fields(task)))]
+    if not any(g.strip() for g in given):
+        return go(back + "&error=" + quote("Введите ответ") + f"#t{task_id}")
+    if time.time() - request.session.get("last_answer", 0) < 1.5:
+        return go(back + "&error=" + quote("Слишком часто — подождите секунду") + f"#t{task_id}")
+    request.session["last_answer"] = time.time()
+    verdict, passed, total, details = answers.check(task, given)
+    ag = student_group(st)
+    ex("INSERT INTO submissions(student_id, task_id, code, group_id, status, verdict, passed, total, details, judged_at) "
+       "VALUES(?,?,?,?,'done',?,?,?,?,datetime('now','localtime'))", st["id"], task_id, answers.as_text(task, given),
+       ag["id"] if ag else None, verdict, passed, total, json.dumps(details, ensure_ascii=False))
+    if ag and st["group_id"] != ag["id"]:
+        ex("UPDATE students SET group_id=? WHERE id=?", ag["id"], st["id"])
+    return go(back + f"#t{task_id}")
 
 
 @app.post("/lesson/{slug}/task/{task_id}/submit")
@@ -361,7 +408,7 @@ async def submit(request: Request, slug: str, task_id: int, code: str = Form("")
 
 @app.get("/submission/{sid}", response_class=HTMLResponse)
 def submission_page(request: Request, sid: int):
-    sub = q("SELECT s.*, st.name student_name, t.title task_title, t.lesson_id, l.slug FROM submissions s "
+    sub = q("SELECT s.*, st.name student_name, t.title task_title, t.lesson_id, t.kind, t.answers, t.section, l.slug FROM submissions s "
             "JOIN students st ON st.id=s.student_id JOIN tasks t ON t.id=s.task_id JOIN lessons l ON l.id=t.lesson_id "
             "WHERE s.id=?", sid, one=True)
     st = current_student(request)
@@ -379,7 +426,8 @@ def submission_page(request: Request, sid: int):
     i = ids.index(sid)
     nav = {"n": i + 1, "total": len(ids), "prev": ids[i - 1] if i > 0 else None,
            "next": ids[i + 1] if i + 1 < len(ids) else None}
-    return render(request, "submission.html", sub=sub, details=details, nav=nav)
+    return render(request, "submission.html", sub=sub, details=details, nav=nav,
+                  ans_fields=answers.fields(sub) if sub["kind"] == "answer" else [])
 
 
 # ---------------------------------------------------------------- админка
@@ -472,10 +520,11 @@ def admin_lesson_delete(request: Request, lid: int):
 
 
 @app.post("/admin/lesson/{lid}/tasks")
-def admin_task_create(request: Request, lid: int, title: str = Form(...)):
+def admin_task_create(request: Request, lid: int, title: str = Form(...), kind: str = Form("code"), section: str = Form("")):
     require_admin(request)
     pos = q("SELECT COALESCE(MAX(pos), 0) m FROM tasks WHERE lesson_id=?", lid, one=True)["m"] + 1
-    tid = ex("INSERT INTO tasks(lesson_id, pos, title) VALUES(?,?,?)", lid, pos, title)
+    tid = ex("INSERT INTO tasks(lesson_id, pos, title, kind, section) VALUES(?,?,?,?,?)", lid, pos, title,
+             "answer" if kind == "answer" else "code", section.strip())
     return go(f"/admin/task/{tid}")
 
 
@@ -492,10 +541,13 @@ def admin_task(request: Request, tid: int):
 
 @app.post("/admin/task/{tid}")
 def admin_task_update(request: Request, tid: int, title: str = Form(...), statement: str = Form(""),
-                      time_limit: float = Form(1.0), pos: int = Form(0)):
+                      time_limit: float = Form(1.0), pos: int = Form(0), section: str = Form(""),
+                      answers_text: str | None = Form(None)):
     require_admin(request)
-    ex("UPDATE tasks SET title=?, statement=?, time_limit=?, pos=? WHERE id=?", title, statement,
-       max(0.2, min(time_limit, 10)), pos, tid)
+    ex("UPDATE tasks SET title=?, statement=?, time_limit=?, pos=?, section=? WHERE id=?", title, statement,
+       max(0.2, min(time_limit, 10)), pos, section.strip(), tid)
+    if answers_text is not None:
+        ex("UPDATE tasks SET answers=? WHERE id=?", answers.from_editable(answers_text), tid)
     return go(f"/admin/task/{tid}")
 
 

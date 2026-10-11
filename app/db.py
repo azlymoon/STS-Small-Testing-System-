@@ -88,7 +88,10 @@ def init():
                             ("submissions", "group_id", "INTEGER REFERENCES groups(id) ON DELETE SET NULL"),
                             ("students", "group_id", "INTEGER REFERENCES groups(id) ON DELETE SET NULL"),
                             ("groups", "is_active", "INTEGER NOT NULL DEFAULT 0"),
-                            ("students", "grp", "TEXT NOT NULL DEFAULT ''")):
+                            ("students", "grp", "TEXT NOT NULL DEFAULT ''"),
+                            ("tasks", "kind", "TEXT NOT NULL DEFAULT 'code'"),     # code — программа, answer — краткий ответ
+                            ("tasks", "section", "TEXT NOT NULL DEFAULT ''"),      # вкладка внутри урока
+                            ("tasks", "answers", "TEXT NOT NULL DEFAULT ''")):     # ответы для kind=answer (JSON)
         if col not in [r["name"] for r in con.execute(f"PRAGMA table_info({table})")]:
             con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
             if col == "is_active":  # раньше активная группа была одна и хранилась в settings

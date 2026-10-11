@@ -17,8 +17,11 @@
 <td><b>{{ row.values() | selectattr('verdict', 'equalto', 'OK') | list | length }}</b></td></tr>{% else %}<tr><td colspan="99" class="mut">Посылок пока нет</td></tr>{% endfor %}
 </table></div><p><a href="/admin/submissions?lesson={{ lesson.id }}{% if group %}&group={{ group }}{% endif %}">Все посылки урока</a></p></div>
 
-<div class="card"><h2>Задачи</h2><table><tr><th>#</th><th>Задача</th><th>Тестов</th><th>TL</th></tr>
-{% for t in tasks %}<tr><td>{{ t.pos }}</td><td><a href="/admin/task/{{ t.id }}">{{ t.title }}</a></td><td>{{ t.ntests }}</td><td>{{ t.time_limit }} с</td></tr>{% endfor %}</table>
-<form method="post" action="/admin/lesson/{{ lesson.id }}/tasks" class="row" style="margin-top:12px"><input class="grow" type="text" name="title" placeholder="Название новой задачи" required style="width:auto"><button>Добавить задачу</button></form></div>
+<div class="card"><h2>Задачи</h2><table><tr><th>#</th><th>Вкладка</th><th>Задача</th><th>Тип</th><th>Тестов / полей</th><th>TL</th></tr>
+{% for t in tasks %}<tr><td>{{ t.pos }}</td><td class="mut">{{ t.section }}</td><td><a href="/admin/task/{{ t.id }}">{{ t.title }}</a></td>
+<td>{{ 'ответ' if t.kind == 'answer' else 'код' }}</td><td>{{ (t.answers | fromjson | length) if t.kind == 'answer' else t.ntests }}</td><td>{{ (t.time_limit ~ ' с') if t.kind != 'answer' }}</td></tr>{% endfor %}</table>
+<form method="post" action="/admin/lesson/{{ lesson.id }}/tasks" class="row" style="margin-top:12px"><input class="grow" type="text" name="title" placeholder="Название новой задачи" required style="width:auto">
+<input type="text" name="section" placeholder="Вкладка (необязательно)" style="width:200px">
+<select name="kind"><option value="code">программа (C++)</option><option value="answer">краткий ответ (тест)</option></select><button>Добавить задачу</button></form></div>
 <form method="post" action="/admin/lesson/{{ lesson.id }}/delete" onsubmit="return confirm('Удалить урок со всеми задачами и посылками?')"><button class="danger">Удалить урок</button></form>
 {% endblock %}

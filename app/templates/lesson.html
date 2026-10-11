@@ -1,6 +1,40 @@
-{% extends "base.html" %}{% from "_verdict.html" import v %}{% block body %}
+{% extends "base.html" %}{% from "_verdict.html" import v %}
+{% block head %}<style>
+.ltabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 14px}.ltabs a{padding:7px 14px;border-radius:8px;border:1px solid var(--line);text-decoration:none;color:var(--fg);font-weight:600}
+.ltabs a.on{background:var(--acc);border-color:var(--acc);color:#fff}.ltabs a .cnt{font-weight:400;opacity:.75;font-size:13px;margin-left:4px}
+.q{scroll-margin-top:16px}.q.ok{border-color:var(--ok)}.q.bad{border-color:var(--bad)}
+.fields{display:grid;grid-template-columns:auto 1fr auto;gap:8px 10px;align-items:center;max-width:560px}
+.fields input{font-family:ui-monospace,Menlo,monospace;font-size:16px}.mark{font-weight:700;font-size:18px;width:20px}
+.mark.ok{color:var(--ok)}.mark.bad{color:var(--bad)}
+</style>{% endblock %}
+{% block body %}
 <div class="card"><p><a href="/">← все уроки</a></p><h1>{{ lesson.title | no_grp(lesson.grp) }}</h1>
-<table><tr><th>#</th><th>Задача</th><th>Результат</th></tr>
-{% for t in tasks %}<tr><td>{{ loop.index }}</td><td><a href="/lesson/{{ lesson.slug }}/task/{{ t.id }}">{{ t.title }}</a></td>
+{% if error %}<div class="err">{{ error }}</div>{% endif %}
+{% if sections | length > 1 or (sections and sections[0]) %}
+<nav class="ltabs">{% for s in sections %}{% set ok = namespace(n=0, total=0) %}
+{% for t in tasks if t.section == s %}{% set ok.total = ok.total + 1 %}{% if best[t.id] and best[t.id].verdict == 'OK' %}{% set ok.n = ok.n + 1 %}{% endif %}{% endfor %}
+<a href="?tab={{ s | urlencode }}" class="{{ 'on' if s == tab }}">{{ s or 'Задачи' }}<span class="cnt">{{ ok.n }}/{{ ok.total }}</span></a>{% endfor %}</nav>
+{% endif %}
+</div>
+
+{% set shown = tasks | selectattr('section', 'equalto', tab) | list if (sections | length > 1 or (sections and sections[0])) else tasks %}
+{% set codes = shown | selectattr('kind', 'equalto', 'code') | list %}
+{% if codes %}<div class="card"><table><tr><th>#</th><th>Задача</th><th>Результат</th></tr>
+{% for t in codes %}<tr><td>{{ loop.index }}</td><td><a href="/lesson/{{ lesson.slug }}/task/{{ t.id }}">{{ t.title }}</a></td>
 <td>{% if best[t.id] %}<a href="/submission/{{ best[t.id].id }}" style="text-decoration:none">{{ v(best[t.id]) }}</a>{% else %}<span class="mut">не сдавалась</span>{% endif %}</td></tr>{% endfor %}
-</table></div>{% endblock %}
+</table></div>{% endif %}
+
+{% for t in shown if t.kind == 'answer' %}{% set l = last.get(t.id) %}
+<div class="card q {{ ('ok' if l.sub.verdict == 'OK' else 'bad') if l }}" id="t{{ t.id }}">
+<div class="row"><h2 class="grow" style="margin:0">{{ t.title }}</h2>
+{% if l %}{% if l.sub.verdict == 'OK' %}<span class="v v-OK">Верно</span>{% else %}<span class="v v-WA">Есть ошибки · {{ l.sub.passed }}/{{ l.sub.total }}</span>{% endif %}<span class="mut" style="font-size:13px">попыток: {{ l.attempts }}</span>{% endif %}</div>
+<div class="statement">{{ t.statement | md | safe }}</div>
+<form method="post" action="/lesson/{{ lesson.slug }}/task/{{ t.id }}/answer" autocomplete="off"><div class="fields">
+{% for f in fields[t.id] %}{% set d = l.details[loop.index0] if l and l.details | length > loop.index0 else none %}
+<label for="a{{ t.id }}_{{ loop.index0 }}">{{ f.label or 'Ответ' }}</label>
+<input type="text" id="a{{ t.id }}_{{ loop.index0 }}" name="a{{ loop.index0 }}" value="{{ d.got if d else '' }}" spellcheck="false">
+<span class="mark {{ ('ok' if d.verdict == 'OK' else 'bad') if d }}">{% if d %}{{ '✓' if d.verdict == 'OK' else '✗' }}{% endif %}</span>
+{% endfor %}</div>
+<p style="margin-top:12px"><button>Проверить</button></p></form></div>
+{% endfor %}
+{% endblock %}

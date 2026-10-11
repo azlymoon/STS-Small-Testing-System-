@@ -4,7 +4,7 @@ import json
 import shutil
 import uuid
 
-from . import db
+from . import answers, db
 
 IMAGE = "mshp-cpp"
 PARALLEL = 8          # одновременных контейнеров
@@ -45,6 +45,13 @@ async def judge(sub_id: int):
     sub = con.execute("SELECT * FROM submissions WHERE id=?", (sub_id,)).fetchone()
     task = con.execute("SELECT * FROM tasks WHERE id=?", (sub["task_id"],)).fetchone()
     tests = con.execute("SELECT * FROM tests WHERE task_id=? ORDER BY is_sample DESC, pos, id", (task["id"],)).fetchall()
+    if task["kind"] == "answer":  # тест с кратким ответом: перепроверка по сохранённым ответам ученика
+        given = [d.get("got", "") for d in json.loads(sub["details"] or "[]")]
+        verdict, passed, total, details = answers.check(task, given)
+        con.execute("UPDATE submissions SET status='done', judged_at=datetime('now', 'localtime'), verdict=?, passed=?, "
+                    "total=?, details=? WHERE id=?", (verdict, passed, total, json.dumps(details, ensure_ascii=False), sub_id))
+        con.close()
+        return
     tl = task["time_limit"]
 
     box = RUNS / f"{sub_id}-{uuid.uuid4().hex[:6]}"

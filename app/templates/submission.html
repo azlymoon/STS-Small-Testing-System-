@@ -11,7 +11,16 @@
 <a href="/admin/submissions?student={{ sub.student_id }}">все посылки ученика</a>
 <form method="post" action="/admin/submission/{{ sub.id }}/rejudge"><button class="sec">Перепроверить</button></form>{% endif %}
 </div></div>
-{% if is_admin %}<div class="card"><h2>Код</h2><pre>{{ sub.code }}</pre></div>{% endif %}
+{% if is_admin and sub.kind != 'answer' %}<div class="card"><h2>Код</h2><pre>{{ sub.code }}</pre></div>{% endif %}
+{% if sub.kind == 'answer' %}
+<div class="card"><h2>Ответы</h2>
+<table><tr><th>#</th><th>Поле</th><th>Ответ ученика</th><th>Результат</th>{% if is_admin %}<th>Правильные варианты</th>{% endif %}</tr>
+{% for d in details %}<tr><td>{{ d.n }}</td><td>{{ d.label }}</td><td><code>{{ d.got or '—' }}</code></td>
+<td><span class="v v-{{ d.verdict }}">{{ 'Верно' if d.verdict == 'OK' else 'Неверно' }}</span></td>
+{% if is_admin %}<td class="mut">{{ (ans_fields[loop.index0].accept | join(' | ')) if ans_fields | length > loop.index0 }}</td>{% endif %}</tr>{% endfor %}
+</table>
+{% if not is_admin %}<p><a href="/lesson/{{ sub.slug }}?tab={{ sub.section | urlencode }}#t{{ sub.task_id }}">← к вопросу</a></p>{% endif %}</div>
+{% else %}
 {% if sub.status == 'done' %}
 {% if sub.verdict in ('CE', 'SE') %}<div class="card"><h2>{{ VERDICTS[sub.verdict] }}</h2><pre>{{ sub.compile_log }}</pre></div>
 {% else %}
@@ -34,5 +43,6 @@
 </div>
 {% if sub.compile_log.strip() %}<div class="card"><h2>Предупреждения компилятора</h2><pre>{{ sub.compile_log }}</pre></div>{% endif %}
 {% endif %}{% endif %}
-{% if not is_admin %}<div class="card"><h2>Код</h2><pre>{{ sub.code }}</pre></div>{% endif %}
+{% endif %}
+{% if not is_admin and sub.kind != 'answer' %}<div class="card"><h2>Код</h2><pre>{{ sub.code }}</pre></div>{% endif %}
 {% endblock %}
