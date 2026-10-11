@@ -1,7 +1,28 @@
 {% extends "base.html" %}{% from "_verdict.html" import v %}
-{% block head %}<meta http-equiv="refresh" content="15">{% endblock %}
+{% block head %}<style>
+tr.code td{padding:0 8px 10px;border-bottom:1px solid var(--line)}tr.code pre{margin:0;max-height:480px}
+tr.has-code td{border-bottom:0}
+details.code>summary{cursor:pointer;color:var(--acc);list-style:none;display:inline}details.code>summary::-webkit-details-marker{display:none}
+</style>{% endblock %}
 {% block body %}{% include "_adminnav.html" %}
-<div class="card"><h1>Посылки</h1><table><tr><th>#</th><th>Время</th><th>Ученик</th><th>Группа</th><th>Задача</th><th>Результат</th></tr>
-{% for s in subs %}<tr><td><a href="/submission/{{ s.id }}">{{ s.id }}</a></td><td>{{ s.created_at }}</td>
-<td><a href="/admin/submissions?student={{ s.student_id }}">{{ s.student_name }}</a></td><td>{% if s.group_id %}<a href="/admin/submissions?group={{ s.group_id }}">{{ s.group_name }}</a>{% else %}<span class="mut">—</span>{% endif %}</td><td><a href="/admin/submissions?task={{ s.task_id }}">{{ s.task_title }}</a></td><td>{{ v(s) }}</td></tr>
-{% else %}<tr><td colspan="6" class="mut">Нет посылок</td></tr>{% endfor %}</table></div>{% endblock %}
+<div class="card"><div class="row"><h1 class="grow" style="margin:0">Посылки{% if title %}: {{ title }}{% endif %}</h1>
+<button class="sec" type="button" onclick="toggleAll(true)">Раскрыть весь код</button>
+<button class="sec" type="button" onclick="toggleAll(false)">Свернуть</button>
+<label class="mut"><input type="checkbox" id="auto" checked> обновлять</label></div>
+<table style="margin-top:10px"><tr><th>#</th><th>Время</th><th>Ученик</th><th>Группа</th><th>Задача</th><th>Результат</th><th>Код</th></tr>
+{% for s in subs %}<tr class="has-code"><td><a href="/submission/{{ s.id }}">{{ s.id }}</a></td><td>{{ s.created_at }}</td>
+<td><a href="/admin/submissions?student={{ s.student_id }}">{{ s.student_name }}</a></td><td>{% if s.group_id %}<a href="/admin/submissions?group={{ s.group_id }}">{{ s.group_name }}</a>{% else %}<span class="mut">—</span>{% endif %}</td>
+<td><a href="/admin/submissions?task={{ s.task_id }}">{{ s.task_title }}</a> <a class="mut" style="font-size:12px" href="/admin/submissions?student={{ s.student_id }}&task={{ s.task_id }}">все попытки</a></td>
+<td><a href="/submission/{{ s.id }}" style="text-decoration:none">{{ v(s) }}</a></td>
+<td><button class="sec" type="button" style="padding:2px 10px" onclick="toggle({{ s.id }})">код</button></td></tr>
+<tr class="code" id="code-{{ s.id }}" hidden><td colspan="7"><pre>{{ s.code }}</pre></td></tr>
+{% else %}<tr><td colspan="7" class="mut">Нет посылок</td></tr>{% endfor %}</table>
+<p class="mut" style="font-size:13px">Показаны последние 500 посылок. Клик по ученику или задаче — фильтр, «все попытки» — все посылки ученика по задаче.</p></div>
+<script>
+const anyOpen = () => document.querySelector('tr.code:not([hidden])');
+function toggle(id) { const r = document.getElementById('code-' + id); r.hidden = !r.hidden; }
+function toggleAll(open) { document.querySelectorAll('tr.code').forEach(r => r.hidden = !open); }
+// автообновление раз в 15 с, но не пока открыт чей-то код
+setInterval(() => { if (document.getElementById('auto').checked && !anyOpen()) location.reload(); }, 15000);
+</script>
+{% endblock %}

@@ -310,7 +310,13 @@ def submission_page(request: Request, sid: int):
     for d, t in zip(details, tests):
         d.setdefault("input", t["input"][:judge.MAX_SHOW])
         d.setdefault("expected", t["output"][:judge.MAX_SHOW])
-    return render(request, "submission.html", sub=sub, details=details)
+    # соседние посылки этого ученика по этой задаче — для листания «← / →»
+    ids = [r["id"] for r in q("SELECT id FROM submissions WHERE student_id=? AND task_id=? ORDER BY id",
+                              sub["student_id"], sub["task_id"])]
+    i = ids.index(sid)
+    nav = {"n": i + 1, "total": len(ids), "prev": ids[i - 1] if i > 0 else None,
+           "next": ids[i + 1] if i + 1 < len(ids) else None}
+    return render(request, "submission.html", sub=sub, details=details, nav=nav)
 
 
 # ---------------------------------------------------------------- админка
@@ -505,11 +511,18 @@ def admin_submissions(request: Request, lesson: int = 0, student: int = 0, task:
         where.append("s.student_id=?"); args.append(student)
     if task:
         where.append("s.task_id=?"); args.append(task)
-    subs = q("SELECT s.id, s.status, s.verdict, s.passed, s.total, s.created_at, st.name student_name, st.id student_id, "
+    subs = q("SELECT s.id, s.status, s.verdict, s.passed, s.total, s.created_at, s.code, st.name student_name, st.id student_id, "
              "t.title task_title, t.id task_id, g.name group_name, g.id group_id FROM submissions s "
              "JOIN students st ON st.id=s.student_id LEFT JOIN groups g ON g.id=s.group_id "
              f"JOIN tasks t ON t.id=s.task_id WHERE {' AND '.join(where)} ORDER BY s.id DESC LIMIT 500", *args)
-    return render(request, "admin_submissions.html", subs=subs)
+    title = ""
+    if student:
+        r = q("SELECT name FROM students WHERE id=?", student, one=True)
+        title = r["name"] if r else ""
+    if task:
+        r = q("SELECT title FROM tasks WHERE id=?", task, one=True)
+        title = (title + " · " if title else "") + (r["title"] if r else "")
+    return render(request, "admin_submissions.html", subs=subs, title=title)
 
 
 @app.get("/admin/students", response_class=HTMLResponse)

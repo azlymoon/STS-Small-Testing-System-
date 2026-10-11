@@ -3,9 +3,15 @@
 {% block body %}
 <div class="card"><div class="row"><h1 class="grow" style="margin:0">Посылка #{{ sub.id }}</h1>{{ v(sub) }}</div>
 <p class="mut">{{ sub.student_name }} · <a href="/lesson/{{ sub.slug }}/task/{{ sub.task_id }}">{{ sub.task_title }}</a> · {{ sub.created_at }}</p>
-{% if is_admin %}<form method="post" action="/admin/submission/{{ sub.id }}/rejudge" class="row"><button class="sec">Перепроверить</button>
-<a href="/admin/submissions?student={{ sub.student_id }}">все посылки ученика</a></form>{% endif %}
-</div>
+<div class="row">
+{% if nav.prev %}<a class="btn" style="background:transparent;color:var(--acc);border:1px solid var(--line)" href="/submission/{{ nav.prev }}">← предыдущая</a>{% endif %}
+<span class="mut">попытка {{ nav.n }} из {{ nav.total }} по этой задаче</span>
+{% if nav.next %}<a class="btn" style="background:transparent;color:var(--acc);border:1px solid var(--line)" href="/submission/{{ nav.next }}">следующая →</a>{% endif %}
+{% if is_admin %}<span class="grow"></span><a href="/admin/submissions?student={{ sub.student_id }}&task={{ sub.task_id }}">все попытки с кодом</a>
+<a href="/admin/submissions?student={{ sub.student_id }}">все посылки ученика</a>
+<form method="post" action="/admin/submission/{{ sub.id }}/rejudge"><button class="sec">Перепроверить</button></form>{% endif %}
+</div></div>
+{% if is_admin %}<div class="card"><h2>Код</h2><pre>{{ sub.code }}</pre></div>{% endif %}
 {% if sub.status == 'done' %}
 {% if sub.verdict in ('CE', 'SE') %}<div class="card"><h2>{{ VERDICTS[sub.verdict] }}</h2><pre>{{ sub.compile_log }}</pre></div>
 {% else %}
@@ -28,5 +34,5 @@
 </div>
 {% if sub.compile_log.strip() %}<div class="card"><h2>Предупреждения компилятора</h2><pre>{{ sub.compile_log }}</pre></div>{% endif %}
 {% endif %}{% endif %}
-<div class="card"><h2>Код</h2><pre>{{ sub.code }}</pre></div>
+{% if not is_admin %}<div class="card"><h2>Код</h2><pre>{{ sub.code }}</pre></div>{% endif %}
 {% endblock %}
