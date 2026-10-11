@@ -6,6 +6,8 @@
 .fields{display:grid;grid-template-columns:auto 1fr auto;gap:8px 10px;align-items:center;max-width:560px}
 .fields input{font-family:ui-monospace,Menlo,monospace;font-size:16px}.mark{font-weight:700;font-size:18px;width:20px}
 .mark.ok{color:var(--ok)}.mark.bad{color:var(--bad)}
+.choices{display:flex;flex-direction:column;gap:6px}.choice{display:flex;gap:8px;align-items:center;cursor:pointer;font-size:16px}
+.choice input{width:18px;height:18px}
 </style>{% endblock %}
 {% block body %}
 <div class="card"><p><a href="/">← все уроки</a></p><h1>{{ lesson.title | no_grp(lesson.grp) }}</h1>
@@ -13,8 +15,9 @@
 {% if sections | length > 1 or (sections and sections[0]) %}
 <nav class="ltabs">{% for s in sections %}{% set ok = namespace(n=0, total=0) %}
 {% for t in tasks if t.section == s %}{% set ok.total = ok.total + 1 %}{% if best[t.id] and best[t.id].verdict == 'OK' %}{% set ok.n = ok.n + 1 %}{% endif %}{% endfor %}
-<a href="?tab={{ s | urlencode }}" class="{{ 'on' if s == tab }}">{{ s or 'Задачи' }}<span class="cnt">{{ ok.n }}/{{ ok.total }}</span></a>{% endfor %}</nav>
+<a href="?tab={{ s | urlencode }}" class="{{ 'on' if s == tab }}">{{ s or 'Задачи' }}<span class="cnt">{{ ok.n }}/{{ ok.total }}</span>{% if is_admin and s in hidden %} <span class="v v-SK">скрыт</span>{% endif %}</a>{% endfor %}</nav>
 {% endif %}
+{% if not tasks %}<p class="mut">Преподаватель пока не открыл задания этого урока. Страница обновится сама.</p>{% endif %}
 </div>
 
 {% set shown = tasks | selectattr('section', 'equalto', tab) | list if (sections | length > 1 or (sections and sections[0])) else tasks %}
@@ -30,11 +33,17 @@
 {% if l %}{% if l.sub.verdict == 'OK' %}<span class="v v-OK">Верно</span>{% else %}<span class="v v-WA">Есть ошибки · {{ l.sub.passed }}/{{ l.sub.total }}</span>{% endif %}<span class="mut" style="font-size:13px">попыток: {{ l.attempts }}</span>{% endif %}</div>
 <div class="statement">{{ t.statement | md | safe }}</div>
 <form method="post" action="/lesson/{{ lesson.slug }}/task/{{ t.id }}/answer" autocomplete="off"><div class="fields">
-{% for f in fields[t.id] %}{% set d = l.details[loop.index0] if l and l.details | length > loop.index0 else none %}
-<label for="a{{ t.id }}_{{ loop.index0 }}">{{ f.label or 'Ответ' }}</label>
-<input type="text" id="a{{ t.id }}_{{ loop.index0 }}" name="a{{ loop.index0 }}" value="{{ d.got if d else '' }}" spellcheck="false">
+{% for f in fields[t.id] %}{% set d = l.details[loop.index0] if l and l.details | length > loop.index0 else none %}{% set i = loop.index0 %}
+{% if f.type == 'multi' %}{% set chosen = (d.got.split(' | ') if d and d.got else []) %}
+<span>{{ f.label }}</span>
+<div class="choices">{% for c in f.choices %}<label class="choice"><input type="checkbox" name="a{{ i }}" value="{{ c }}" {% if c in chosen %}checked{% endif %}> <code>{{ c }}</code></label>{% endfor %}</div>
+{% else %}
+<label for="a{{ t.id }}_{{ i }}">{{ f.label or 'Ответ' }}</label>
+<input type="text" id="a{{ t.id }}_{{ i }}" name="a{{ i }}" value="{{ d.got if d else '' }}" spellcheck="false">
+{% endif %}
 <span class="mark {{ ('ok' if d.verdict == 'OK' else 'bad') if d }}">{% if d %}{{ '✓' if d.verdict == 'OK' else '✗' }}{% endif %}</span>
 {% endfor %}</div>
 <p style="margin-top:12px"><button>Проверить</button></p></form></div>
 {% endfor %}
+{% if not is_admin %}{% include "_live.html" %}{% endif %}
 {% endblock %}

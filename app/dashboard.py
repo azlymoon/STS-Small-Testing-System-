@@ -107,5 +107,7 @@ async def dashboard_data(request: Request, lesson: int = 0, group: int = 0):
                  FROM submissions s JOIN students st ON st.id=s.student_id JOIN tasks tk ON tk.id=s.task_id
                  WHERE tk.lesson_id=?""" + g.replace("s.group_id", "s.group_id") + """ ORDER BY s.id DESC LIMIT 25""", lesson)
     server["active_groups"] = [a["name"] for a in active]
-    return {"server": server, "lesson": lesson, "tasks": tasks, "students": students, "cells": cells, "feed": feed,
+    from .main import lesson_sections_info
+    sections = lesson_sections_info(lesson) if lesson else []
+    return {"server": server, "sections": sections, "lesson": lesson, "tasks": tasks, "students": students, "cells": cells, "feed": feed,
             "now": time.strftime("%H:%M:%S")}

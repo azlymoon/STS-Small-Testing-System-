@@ -13,7 +13,9 @@ main{max-width:1400px}
 .c.ok{background:var(--okbg);color:var(--ok)}.c.bad{background:var(--badbg);color:var(--bad)}.c.q{background:var(--waitbg);color:var(--wait)}
 .fresh{animation:pulse 2s ease-out 3}@keyframes pulse{0%{box-shadow:0 0 0 3px var(--acc)}100%{box-shadow:0 0 0 0 transparent}}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--line);margin-right:6px}.dot.on{background:var(--ok)}
-.feed td{font-size:13px;padding:4px 6px}.help td{padding:4px 6px}
+.feed td{font-size:13px;padding:4px 6px}
+.blk{padding:5px 12px;border-radius:999px;border:1px solid var(--line);cursor:pointer;font:inherit;font-weight:600}
+.blk.shown{background:var(--okbg);color:var(--ok);border-color:var(--ok)}.blk.hid{background:var(--code);color:var(--mut);text-decoration:line-through}.help td{padding:4px 6px}
 th.sort{cursor:pointer}
 </style>{% endblock %}
 {% block body %}{% include "_adminnav.html" %}
@@ -25,6 +27,8 @@ th.sort{cursor:pointer}
 <option value="-2">Занимающиеся сейчас</option><option value="0">Все группы</option>{% for g in study_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}<option value="-1">Без группы</option></select>
 <span class="mut" id="upd">—</span></div>
 
+<div class="card" id="blocks-card" style="padding:10px 14px" hidden><div class="row" style="gap:8px"><b>Блоки урока:</b><span id="blocks" class="row" style="gap:6px"></span>
+<span class="mut" style="font-size:13px">клик — показать/скрыть у учеников (обновится у них за несколько секунд)</span></div></div>
 <div class="kpis" id="kpis"></div>
 
 <div class="cols">
@@ -58,8 +62,18 @@ function kpi(label, value, sub, level) {
   return `<div class="kpi ${level||''}"><div class="l">${label}</div><div class="n">${value}</div><div class="s">${sub||''}</div></div>`;
 }
 
+async function toggleBlock(lesson, name, hide) {
+  const f = new FormData(); f.append('section', name); f.append('hidden', hide ? '1' : '0');
+  await fetch('/admin/lesson/' + lesson + '/sections', {method: 'POST', body: f, headers: {'x-fetch': '1'}, credentials: 'same-origin'});
+  load();
+}
+
 function render(d) {
   const s = d.server;
+  $('blocks-card').hidden = !d.sections.length;
+  $('blocks').innerHTML = d.sections.map(b => `<button class="blk ${b.hidden ? 'hid' : 'shown'}" data-name="${esc(b.name)}" data-hide="${b.hidden ? 0 : 1}"
+    title="${b.hidden ? 'Скрыт — нажмите, чтобы показать' : 'Показан — нажмите, чтобы скрыть'}">${b.hidden ? '🔒 ' : '👁 '}${esc(b.name || 'Задачи')} (${b.n})</button>`).join('');
+  $('blocks').querySelectorAll('button').forEach(b => b.onclick = () => toggleBlock(d.lesson, b.dataset.name, b.dataset.hide === '1'));
   $('upd').textContent = 'обновлено ' + d.now;
   $('kpis').innerHTML = [
     kpi('Сейчас занимаются', s.active_groups.length ? s.active_groups.length + (s.active_groups.length === 1 ? ' группа' : ' группы') : '—',

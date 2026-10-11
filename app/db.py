@@ -60,6 +60,12 @@ CREATE TABLE IF NOT EXISTS groups (
     archived INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
+CREATE TABLE IF NOT EXISTS section_visibility (   -- скрытые преподавателем блоки (вкладки) урока
+    lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+    section TEXT NOT NULL,
+    hidden INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (lesson_id, section)
+);
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 CREATE INDEX IF NOT EXISTS sub_status ON submissions(status);
 CREATE INDEX IF NOT EXISTS sub_student_task ON submissions(student_id, task_id);

@@ -168,6 +168,21 @@ def go(url):
     return RedirectResponse(url, status_code=303)
 
 
+def hidden_sections(lesson_id):
+    return {r["section"] for r in q("SELECT section FROM section_visibility WHERE lesson_id=? AND hidden=1", lesson_id)}
+
+
+def lesson_state(lesson):
+    """Подпись того, что ученик сейчас видит в уроке; меняется — страницы учеников обновляются сами."""
+    hidden = sorted(hidden_sections(lesson["id"]))
+    n = q("SELECT COUNT(*) c FROM tasks WHERE lesson_id=?", lesson["id"], one=True)["c"]
+    return f'{lesson["is_open"]}:{n}:' + "|".join(hidden)
+
+
+def section_hidden_for(request, task):
+    return not request.session.get("admin") and task["section"] in hidden_sections(task["lesson_id"])
+
+
 def lesson_by_slug(slug, request):
     lesson = q("SELECT * FROM lessons WHERE slug=?", slug, one=True)
     if not lesson or (not lesson["is_open"] and not request.session.get("admin")):
@@ -306,6 +321,9 @@ def lesson_page(request: Request, slug: str):
     if lesson["grp"]:
         request.session["grp"] = lesson["grp"]
     tasks = q("SELECT * FROM tasks WHERE lesson_id=? ORDER BY pos, id", lesson["id"])
+    hidden = hidden_sections(lesson["id"])
+    if not request.session.get("admin"):  # скрытые преподавателем блоки ученик не видит
+        tasks = [t for t in tasks if t["section"] not in hidden]
     best = best_results(st["id"], [t["id"] for t in tasks])
     sections = list(dict.fromkeys(t["section"] for t in tasks))  # вкладки урока в порядке задач
     last = {}  # task_id -> последняя посылка (для тестов с ответом показываем, что ученик ввёл)
@@ -320,8 +338,16 @@ def lesson_page(request: Request, slug: str):
     if tab not in sections:
         tab = sections[0] if sections else ""
     return render(request, "lesson.html", lesson=lesson, tasks=tasks, best=best, sections=sections, tab=tab,
+                  hidden=hidden, state=lesson_state(lesson),
                   last=last, fields={t["id"]: answers.fields(t) for t in tasks if t["kind"] == "answer"},
                   error=request.query_params.get("error", ""))
+
+
+@app.get("/lesson/{slug}/state")
+def lesson_state_api(slug: str):
+    """Опрашивается страницами учеников раз в несколько секунд (живое обновление показа блоков)."""
+    lesson = q("SELECT * FROM lessons WHERE slug=?", slug, one=True)
+    return {"v": lesson_state(lesson) if lesson else ""}
 
 
 @app.get("/lesson/{slug}/task/{task_id}", response_class=HTMLResponse)
@@ -335,6 +361,10 @@ def task_page(request: Request, slug: str, task_id: int, error: str = ""):
     task = q("SELECT * FROM tasks WHERE id=? AND lesson_id=?", task_id, lesson["id"], one=True)
     if not task:
         raise HTTPException(404)
+    if section_hidden_for(request, task):
+        resp = render(request, "section_hidden.html", lesson=lesson, state=lesson_state(lesson))
+        resp.status_code = 403
+        return resp
     if task["kind"] == "answer":
         return go(f"/lesson/{slug}?tab={quote(task['section'])}#t{task_id}")
     tasks = q("SELECT id, title FROM tasks WHERE lesson_id=? ORDER BY pos, id", lesson["id"])
@@ -342,7 +372,7 @@ def task_page(request: Request, slug: str, task_id: int, error: str = ""):
     subs = q("SELECT * FROM submissions WHERE student_id=? AND task_id=? ORDER BY id DESC", st["id"], task_id)
     last_code = subs[0]["code"] if subs else ""
     return render(request, "task.html", lesson=lesson, task=task, tasks=tasks, samples=samples, subs=subs,
-                  last_code=last_code, error=error)
+                  last_code=last_code, error=error, state=lesson_state(lesson))
 
 
 @app.post("/lesson/{slug}/task/{task_id}/answer")
@@ -358,8 +388,11 @@ async def submit_answer(request: Request, slug: str, task_id: int):
     back = f"/lesson/{slug}?tab={quote(task['section'])}"
     if gate := student_gate(request, st, lesson):
         return go(back) if gate.status_code == 403 else gate
+    if section_hidden_for(request, task):
+        return go(f"/lesson/{slug}?error=" + quote("Этот блок закрыт преподавателем"))
     form = await request.form()
-    given = [str(form.get(f"a{i}", "")) for i in range(len(answers.fields(task)))]
+    given = [answers.SEP.join(str(v) for v in form.getlist(f"a{i}")) if answers.is_multi(f) else str(form.get(f"a{i}", ""))
+             for i, f in enumerate(answers.fields(task))]
     if not any(g.strip() for g in given):
         return go(back + "&error=" + quote("Введите ответ") + f"#t{task_id}")
     if time.time() - request.session.get("last_answer", 0) < 1.5:
@@ -381,8 +414,11 @@ async def submit(request: Request, slug: str, task_id: int, code: str = Form("")
     st = current_student(request)
     if not st:
         return go(f"/lesson/{slug}")
-    if not q("SELECT 1 FROM tasks WHERE id=? AND lesson_id=?", task_id, lesson["id"], one=True):
+    task = q("SELECT * FROM tasks WHERE id=? AND lesson_id=?", task_id, lesson["id"], one=True)
+    if not task:
         raise HTTPException(404)
+    if section_hidden_for(request, task):
+        return go(f"/lesson/{slug}?error=" + quote("Этот блок закрыт преподавателем"))
     if file is not None and file.filename:
         code = (await file.read(MAX_CODE + 1)).decode("utf-8", errors="replace")
     back = f"/lesson/{slug}/task/{task_id}"
@@ -498,6 +534,7 @@ def admin_lesson(request: Request, lid: int, group: int = 0):
     base = str(request.base_url).rstrip("/")
     all_groups = [r["grp"] for r in q("SELECT DISTINCT grp FROM lessons WHERE grp!='' ORDER BY grp")]
     return render(request, "admin_lesson.html", lesson=lesson, tasks=tasks, students=students, table=table, base=base,
+                  sections=lesson_sections_info(lid),
                   all_groups=all_groups, group=group,
                   all_study_groups=q("SELECT * FROM groups ORDER BY archived, grp, name"))
 
@@ -510,6 +547,28 @@ async def admin_lesson_update(request: Request, lid: int, title: str = Form(...)
     if docx is not None and docx.filename:
         import_docx_into(lid, io.BytesIO(await docx.read()))
     return go(f"/admin/lesson/{lid}")
+
+
+@app.post("/admin/lesson/{lid}/sections")
+async def admin_section_visibility(request: Request, lid: int):
+    """Показать/скрыть блок урока (section) или все блоки сразу (all=1)."""
+    require_admin(request)
+    form = await request.form()
+    hidden = 1 if str(form.get("hidden", "0")) == "1" else 0
+    names = [t["section"] for t in q("SELECT DISTINCT section FROM tasks WHERE lesson_id=?", lid)] \
+        if form.get("all") else [str(form.get("section", ""))]
+    for name in names:
+        ex("INSERT INTO section_visibility(lesson_id, section, hidden) VALUES(?,?,?) "
+           "ON CONFLICT(lesson_id, section) DO UPDATE SET hidden=excluded.hidden", lid, name, hidden)
+    if request.headers.get("x-fetch"):
+        return {"ok": True}
+    return go(request.headers.get("referer") or f"/admin/lesson/{lid}")
+
+
+def lesson_sections_info(lid):
+    hidden = hidden_sections(lid)
+    rows = q("SELECT section, COUNT(*) n, MIN(pos) p FROM tasks WHERE lesson_id=? GROUP BY section ORDER BY p", lid)
+    return [{"name": r["section"], "n": r["n"], "hidden": r["section"] in hidden} for r in rows]
 
 
 @app.post("/admin/lesson/{lid}/delete")

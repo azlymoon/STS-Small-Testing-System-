@@ -7,6 +7,15 @@
 <div class="row"><label><input type="checkbox" name="is_open" value="1" {% if lesson.is_open %}checked{% endif %}> открыт для учеников</label>
 <span class="mut">добавить задачи из .docx:</span><input type="file" name="docx" accept=".docx"><button>Сохранить</button></div></form></div>
 
+<div class="card"><div class="row"><h2 class="grow" style="margin:0">Блоки урока</h2>
+<form method="post" action="/admin/lesson/{{ lesson.id }}/sections"><input type="hidden" name="all" value="1"><input type="hidden" name="hidden" value="0"><button class="sec">Показать все</button></form>
+<form method="post" action="/admin/lesson/{{ lesson.id }}/sections"><input type="hidden" name="all" value="1"><input type="hidden" name="hidden" value="1"><button class="sec">Скрыть все</button></form></div>
+<p class="mut">Скрытые блоки ученики не видят; страницы учеников обновляются сами за несколько секунд.</p>
+<table>{% for s in sections %}<tr><td><b>{{ s.name or 'Задачи' }}</b> <span class="mut">({{ s.n }})</span></td>
+<td>{% if s.hidden %}<span class="v v-WA">скрыт</span>{% else %}<span class="v v-OK">показан</span>{% endif %}</td>
+<td><form method="post" action="/admin/lesson/{{ lesson.id }}/sections"><input type="hidden" name="section" value="{{ s.name }}"><input type="hidden" name="hidden" value="{{ 0 if s.hidden else 1 }}">
+<button class="{{ '' if s.hidden else 'sec' }}" style="padding:4px 12px">{{ 'Показать' if s.hidden else 'Скрыть' }}</button></form></td></tr>{% endfor %}</table></div>
+
 <div class="card"><div class="row"><h2 class="grow" style="margin:0">Результаты</h2>
 <form method="get" class="row" style="gap:6px"><span class="mut">группа:</span><select name="group" onchange="this.form.submit()" style="padding:4px 6px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--fg);font:inherit">
 <option value="0">все</option>{% for g in all_study_groups %}<option value="{{ g.id }}" {% if group == g.id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}<option value="-1" {% if group == -1 %}selected{% endif %}>без группы</option></select></form></div>

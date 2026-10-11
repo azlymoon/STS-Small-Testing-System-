@@ -1,0 +1,20 @@
+{# Живое обновление страницы ученика: если преподаватель показал/скрыл блоки — страница обновляется сама.
+   Если ученик что-то ввёл и не отправил — не перезагружаем, а показываем плашку. #}
+<div id="live-banner" hidden style="position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:10;background:var(--acc);color:#fff;padding:10px 16px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;gap:12px;align-items:center">
+<span>Учитель изменил задания урока</span><button type="button" onclick="location.reload()" style="background:#fff;color:var(--acc)">Обновить</button></div>
+<script>
+(function () {
+  const url = {{ ('/lesson/' ~ lesson.slug ~ '/state') | tojson }}, start = {{ state | tojson }};
+  const dirty = () => [...document.querySelectorAll('input[type=text], textarea')].some(e => e.value !== e.defaultValue)
+    || [...document.querySelectorAll('input[type=checkbox]')].some(e => e.checked !== e.defaultChecked);
+  setInterval(async () => {
+    try {
+      const r = await fetch(url, {cache: 'no-store'});
+      const v = (await r.json()).v;
+      if (v === start) return;
+      if (dirty()) document.getElementById('live-banner').hidden = false;
+      else location.reload();
+    } catch (e) {}
+  }, 4000);
+})();
+</script>

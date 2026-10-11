@@ -21,5 +21,6 @@
 {% for s in subs %}<tr><td><a href="/submission/{{ s.id }}">{{ s.id }}</a></td><td>{{ s.created_at }}</td><td>{{ v(s) }}</td><td><a href="/submission/{{ s.id }}">тесты →</a></td></tr>{% endfor %}</table>
 {% else %}<p class="mut">Пока нет посылок.</p>{% endif %}</div>
 </div></div>
+{% if not is_admin %}{% include "_live.html" %}{% endif %}
 <script>document.querySelector('textarea.code').addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();const t=e.target,s=t.selectionStart;t.setRangeText('    ',s,t.selectionEnd,'end')}})</script>
 {% endblock %}

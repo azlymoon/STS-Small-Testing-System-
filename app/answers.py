@@ -2,6 +2,8 @@
 
 Ответы задачи хранятся в tasks.answers как JSON: [{"label": "X₂", "accept": ["10000"]}, ...] —
 одно поле ввода на элемент, в accept — все допустимые варианты.
+Поле с выбором нескольких вариантов: {"type": "multi", "label": "...", "choices": [...], "accept": [верные варианты]} —
+верно, только если отмечены ровно все верные варианты.
 """
 import json
 import re
@@ -41,6 +43,13 @@ def matches(given, accepted):
     return False
 
 
+SEP = " | "  # разделитель выбранных вариантов в сохранённом ответе
+
+
+def is_multi(f):
+    return f.get("type") == "multi"
+
+
 def fields(task):
     try:
         return json.loads(task["answers"] or "[]")
@@ -53,8 +62,12 @@ def check(task, given):
     fs = fields(task)
     details, passed = [], 0
     for i, f in enumerate(fs):
-        g = (given[i] if i < len(given) else "").strip()[:500]
-        ok = matches(g, f["accept"])
+        g = (given[i] if i < len(given) else "").strip()[:2000]
+        if is_multi(f):
+            chosen = {c for c in g.split(SEP) if c}
+            ok = bool(chosen) and chosen == set(f["accept"])
+        else:
+            ok = matches(g[:500], f["accept"])
         passed += ok
         details.append({"n": i + 1, "label": f.get("label", ""), "got": g, "verdict": "OK" if ok else "WA"})
     return ("OK" if fs and passed == len(fs) else "WA"), passed, len(fs), details
@@ -72,13 +85,25 @@ def to_editable(answers_json):
         fs = json.loads(answers_json or "[]")
     except ValueError:
         return answers_json or ""
-    return "\n".join(f"{f.get('label', '')} = {' | '.join(f['accept'])}" for f in fs)
+    lines = []
+    for f in fs:
+        if is_multi(f):  # «подпись ?= *верный | неверный | *верный»
+            lines.append(f"{f.get('label', '')} ?= " + " | ".join(("*" if c in f["accept"] else "") + c for c in f["choices"]))
+        else:
+            lines.append(f"{f.get('label', '')} = {' | '.join(f['accept'])}")
+    return "\n".join(lines)
 
 
 def from_editable(text):
     fs = []
     for line in text.splitlines():
         if not line.strip():
+            continue
+        if "?=" in line:
+            label, _, rest = line.partition("?=")
+            choices = [c.strip() for c in rest.split("|") if c.strip()]
+            fs.append({"type": "multi", "label": label.strip(), "choices": [c.lstrip("*").strip() for c in choices],
+                       "accept": [c.lstrip("*").strip() for c in choices if c.startswith("*")]})
             continue
         label, _, acc = line.rpartition("=") if "=" in line else ("", "", line)
         fs.append({"label": label.strip(), "accept": [a.strip() for a in acc.split("|") if a.strip()]})
