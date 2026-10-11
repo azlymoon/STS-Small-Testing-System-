@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% from "_verdict.html" import v %}
+{% block head %}{% if sub.status != 'done' %}<meta http-equiv="refresh" content="2">{% endif %}{% endblock %}
+{% block body %}
+<div class="card"><div class="row"><h1 class="grow" style="margin:0">Посылка #{{ sub.id }}</h1>{{ v(sub) }}</div>
+<p class="mut">{{ sub.student_name }} · <a href="/lesson/{{ sub.slug }}/task/{{ sub.task_id }}">{{ sub.task_title }}</a> · {{ sub.created_at }}</p>
+{% if is_admin %}<form method="post" action="/admin/submission/{{ sub.id }}/rejudge" class="row"><button class="sec">Перепроверить</button>
+<a href="/admin/submissions?student={{ sub.student_id }}">все посылки ученика</a></form>{% endif %}
+</div>
+{% if sub.status == 'done' %}
+{% if sub.verdict in ('CE', 'SE') %}<div class="card"><h2>{{ VERDICTS[sub.verdict] }}</h2><pre>{{ sub.compile_log }}</pre></div>
+{% else %}
+<div class="card"><h2>Тесты</h2>
+<p class="mut">Нажмите на тест, чтобы увидеть входные данные, правильный ответ и вывод вашей программы.</p>
+{% for d in details %}
+<details class="test" {% if d.verdict not in ('OK', 'SK') %}open{% endif %}>
+<summary><span style="min-width:110px">Тест {{ d.n }}{% if d.sample %} <span class="mut">(пример)</span>{% endif %}</span>
+<span class="v v-{{ d.verdict }}">{{ VERDICTS[d.verdict] }}</span>{% if d.verdict == 'RE' %}<span class="mut">код {{ d.rc }}</span>{% endif %}
+<span class="grow"></span><span class="mut">{% if d.verdict != 'SK' %}{{ d.ms }} мс{% endif %}</span></summary>
+<div class="body"><div class="row" style="align-items:flex-start">
+<div class="grow" style="min-width:200px"><b>Входные данные</b><pre>{{ d.input }}</pre></div>
+<div class="grow" style="min-width:200px"><b>Правильный ответ</b><pre>{{ d.expected }}</pre></div>
+<div class="grow" style="min-width:200px"><b>Вывод программы</b><pre>{% if d.verdict == 'SK' %}(тест не запускался){% elif d.got is defined %}{{ d.got if d.got else '(пусто)' }}{% else %}(совпал с ответом){% endif %}</pre></div></div>
+{% if d.stderr %}<b>Ошибки (stderr)</b><pre>{{ d.stderr }}</pre>{% endif %}
+</div></details>
+{% endfor %}
+<p class="row" style="margin-top:10px"><button class="sec" type="button" onclick="document.querySelectorAll('details.test').forEach(x=>x.open=true)">Раскрыть все</button>
+<button class="sec" type="button" onclick="document.querySelectorAll('details.test').forEach(x=>x.open=false)">Свернуть все</button></p>
+</div>
+{% if sub.compile_log.strip() %}<div class="card"><h2>Предупреждения компилятора</h2><pre>{{ sub.compile_log }}</pre></div>{% endif %}
+{% endif %}{% endif %}
+<div class="card"><h2>Код</h2><pre>{{ sub.code }}</pre></div>
+{% endblock %}

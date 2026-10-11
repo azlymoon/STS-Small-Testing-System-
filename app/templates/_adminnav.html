@@ -1,0 +1,10 @@
+<div class="row" style="margin-bottom:12px"><a href="/admin/dashboard"><b>Дашборд</b></a><a href="/admin">Уроки</a><a href="/admin/groups">Группы</a><a href="/admin/submissions">Все посылки</a><a href="/admin/students">Ученики</a>
+<span class="grow"></span>
+<div class="row" style="gap:6px;padding:4px 8px;border-radius:8px;background:{{ 'var(--okbg)' if active_groups else 'var(--waitbg)' }}">
+<span style="font-weight:600;color:{{ 'var(--ok)' if active_groups else 'var(--wait)' }}">Сейчас занимаются:</span>
+{% for g in active_groups %}<form method="post" action="/admin/group/{{ g.id }}/active" style="display:inline"><input type="hidden" name="on" value="0">
+<span class="v v-OK" style="font-size:13px">{{ g.name }} <button title="Закончить занятие группы" style="background:none;border:0;padding:0 0 0 4px;color:inherit;cursor:pointer;font-weight:700">×</button></span></form>{% else %}<span style="color:var(--wait)">никто</span>{% endfor %}
+{% set rest = study_groups | rejectattr('is_active') | list %}
+{% if rest %}<form method="post" action="/admin/active-group" style="display:inline"><select name="group_id" onchange="this.form.submit()" style="padding:3px 6px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--fg);font:inherit">
+<option value="0">+ группа</option>{% for g in rest %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select></form>{% endif %}
+</div></div>

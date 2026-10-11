@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% from "_verdict.html" import v %}
+{% block head %}{% if subs and subs[0].status != 'done' %}<meta http-equiv="refresh" content="3">{% endif %}{% endblock %}
+{% block body %}
+<div class="layout"><div class="side card"><b><a href="/lesson/{{ lesson.slug }}">{{ lesson.title | no_grp(lesson.grp) }}</a></b>
+{% for t in tasks %}<a href="/lesson/{{ lesson.slug }}/task/{{ t.id }}" {% if t.id == task.id %}style="font-weight:700"{% endif %}>{{ loop.index }}. {{ t.title }}</a>{% endfor %}</div>
+<div>
+<div class="card statement"><h1>{{ task.title }}</h1>
+<p class="mut">Ограничение времени: {{ task.time_limit }} с · Язык: C++17</p>
+{{ task.statement | md | safe }}
+{% if samples %}<h3>Примеры</h3><table class="samples"><tr><th>Входные данные</th><th>Выходные данные</th></tr>
+{% for s in samples %}<tr><td><pre>{{ s.input }}</pre></td><td><pre>{{ s.output }}</pre></td></tr>{% endfor %}</table>{% endif %}
+</div>
+<div class="card"><h2>Отправить решение</h2>
+{% if error %}<div class="err">{{ error }}</div>{% endif %}
+<form method="post" action="/lesson/{{ lesson.slug }}/task/{{ task.id }}/submit" enctype="multipart/form-data">
+<p><textarea class="code" name="code" placeholder="Вставьте код на C++ сюда" spellcheck="false">{{ last_code }}</textarea></p>
+<div class="row"><span class="mut">или файл:</span><input type="file" name="file" accept=".cpp,.cc,.cxx,.txt"><span class="grow"></span><button>Отправить</button></div>
+</form></div>
+<div class="card"><h2>Мои посылки</h2>
+{% if subs %}<table><tr><th>#</th><th>Время</th><th>Результат</th></tr>
+{% for s in subs %}<tr><td><a href="/submission/{{ s.id }}">{{ s.id }}</a></td><td>{{ s.created_at }}</td><td>{{ v(s) }}</td><td><a href="/submission/{{ s.id }}">тесты →</a></td></tr>{% endfor %}</table>
+{% else %}<p class="mut">Пока нет посылок.</p>{% endif %}</div>
+</div></div>
+<script>document.querySelector('textarea.code').addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();const t=e.target,s=t.selectionStart;t.setRangeText('    ',s,t.selectionEnd,'end')}})</script>
+{% endblock %}

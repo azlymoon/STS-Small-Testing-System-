@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block body %}{% include "_adminnav.html" %}
+<p><a href="/admin/groups">← все группы</a></p>
+<div class="card"><div class="row"><h1 class="grow" style="margin:0">{{ group.name }}</h1>
+<a class="btn" href="/admin/group/{{ group.id }}/csv">Скачать CSV</a></div>
+<p class="mut">Сколько задач каждого урока решил ученик (по посылкам, отправленным в этой группе). Клик по числу — таблица урока по этой группе.</p>
+<div class="scroll"><table class="grid">
+<tr><th>Ученик</th>{% for l in lessons %}<th title="{{ l.title }}" style="white-space:normal;min-width:110px;font-size:12px">{{ l.title }}<br><span class="mut">из {{ l.ntasks }}</span></th>{% endfor %}<th>Всего</th></tr>
+{% for st in students %}<tr><td><a href="/admin/submissions?student={{ st.id }}&group={{ group.id }}">{{ st.name }}</a></td>
+{% for l in lessons %}{% set c = cell.get((st.id, l.id)) %}<td>{% if c %}<a href="/admin/lesson/{{ l.id }}?group={{ group.id }}" style="text-decoration:none"><span class="v {{ 'v-OK' if c.solved == l.ntasks else ('v-q' if c.solved else 'v-WA') }}">{{ c.solved }}</span></a>{% else %}<span class="mut">—</span>{% endif %}</td>{% endfor %}
+<td><b>{{ totals[st.id] }}</b></td></tr>
+{% else %}<tr><td colspan="99" class="mut">В этой группе пока нет посылок.</td></tr>{% endfor %}
+</table></div></div>
+<div class="card"><h2>Настройки группы</h2>
+<form method="post" action="/admin/group/{{ group.id }}">
+<p><input type="text" name="name" value="{{ group.name }}"></p>
+<p><input type="text" name="grp" value="{{ group.grp }}" list="years" placeholder="Год"><datalist id="years">{% for y in years %}<option value="{{ y }}">{% endfor %}</datalist></p>
+<p><label><input type="checkbox" name="archived" value="1" {% if group.archived %}checked{% endif %}> в архиве (скрыть из выбора)</label></p>
+<button>Сохранить</button></form></div>{% endblock %}

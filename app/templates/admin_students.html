@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block body %}{% include "_adminnav.html" %}
+<div class="card"><h1>Ученики</h1><p class="mut">«Перенести» — если ученик решал не в той группе (например, забыли переключить текущую группу). Если ученик зашёл под двумя написаниями — объедините (посылки перенесутся в выбранного).</p>
+<table><tr><th>ID</th><th>ФИО</th><th>Группа</th><th>Посылок</th><th>Действия</th></tr>
+{% for st in students %}<tr><td>{{ st.id }}</td><td><a href="/admin/submissions?student={{ st.id }}">{{ st.name }}</a></td><td>{{ st.group_name or '—' }}</td><td>{{ st.nsubs }}</td>
+<td><form method="post" action="/admin/students/{{ st.id }}" class="row">
+<input type="text" name="name" placeholder="Новое ФИО" style="width:180px">
+<select name="merge_into"><option value="0">объединить с…</option>{% for o in students if o.id != st.id %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}</select>
+<button class="sec">Применить</button></form>
+<form method="post" action="/admin/students/{{ st.id }}/move" class="row" style="margin-top:4px"><span class="mut">все посылки →</span>
+<select name="to_group"><option value="0">без группы</option>{% for g in all_study_groups %}<option value="{{ g.id }}" {% if st.group_id == g.id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select>
+<input type="hidden" name="from_group" value="all"><button class="sec">Перенести</button></form></td></tr>{% endfor %}</table></div>{% endblock %}

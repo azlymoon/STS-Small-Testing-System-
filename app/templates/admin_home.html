@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block body %}{% include "_adminnav.html" %}
+<div class="card"><h1>Уроки</h1>{% if short %}<p>Ссылка для учеников: <b style="font-size:20px">{{ short }}</b> · <a href="/screen" target="_blank">показать на экране</a></p>{% endif %}
+<p class="mut">В очереди на проверку: {{ queue }}. Ученики по короткой ссылке попадают на список открытых уроков — закройте старые уроки (галочка «открыт»), чтобы список был коротким.</p>
+<table><tr><th>Год</th><th>Урок</th><th>Ссылка</th><th>Задач</th><th>Открыт</th></tr>
+{% for l in lessons %}<tr><td>{{ l.grp }}</td><td><a href="/admin/lesson/{{ l.id }}">{{ l.title }}</a></td><td><a href="/lesson/{{ l.slug }}">/lesson/{{ l.slug }}</a></td><td>{{ l.ntasks }}</td><td>{{ 'да' if l.is_open else 'нет' }}</td></tr>{% endfor %}
+</table></div>
+<div class="card"><h2>Новый урок</h2>
+<form method="post" action="/admin/lessons" enctype="multipart/form-data">
+<p><input type="text" name="title" placeholder="Название, например «Занятие 5 · Классная работа»" required></p>
+<p><input type="text" name="grp" list="grps" placeholder="Вкладка (год), например «1 год»"><datalist id="grps">{% for g in all_groups %}<option value="{{ g }}">{% endfor %}</datalist></p>
+<p><input type="text" name="slug" placeholder="Адрес (латиница, например y1-l05) — необязательно"></p>
+<p class="row"><span class="mut">Задачи из .docx (необязательно):</span><input type="file" name="docx" accept=".docx"></p>
+<button>Создать</button></form></div>{% endblock %}

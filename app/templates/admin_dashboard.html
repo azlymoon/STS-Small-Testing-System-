@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block head %}<style>
+main{max-width:1400px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.kpi .l{color:var(--mut);font-size:12px}.kpi .n{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}.kpi .s{color:var(--mut);font-size:12px}
+.kpi.warn{border-color:var(--wait)}.kpi.warn .n{color:var(--wait)}.kpi.bad{border-color:var(--bad)}.kpi.bad .n{color:var(--bad)}
+.cols{display:grid;grid-template-columns:2fr 1fr;gap:16px}@media (max-width:1000px){.cols{grid-template-columns:1fr}}
+.bars{display:flex;align-items:flex-end;gap:2px;height:60px}.bars div{flex:1;background:var(--acc);opacity:.75;border-radius:2px 2px 0 0;min-height:1px;position:relative}
+.bars div i{position:absolute;bottom:0;left:0;right:0;background:var(--ok);border-radius:2px 2px 0 0}
+.tbar{height:8px;background:var(--code);border-radius:4px;overflow:hidden;margin-top:3px}.tbar i{display:block;height:100%;background:var(--ok)}
+.c{display:inline-block;min-width:38px;padding:2px 6px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none}
+.c.ok{background:var(--okbg);color:var(--ok)}.c.bad{background:var(--badbg);color:var(--bad)}.c.q{background:var(--waitbg);color:var(--wait)}
+.fresh{animation:pulse 2s ease-out 3}@keyframes pulse{0%{box-shadow:0 0 0 3px var(--acc)}100%{box-shadow:0 0 0 0 transparent}}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--line);margin-right:6px}.dot.on{background:var(--ok)}
+.feed td{font-size:13px;padding:4px 6px}.help td{padding:4px 6px}
+th.sort{cursor:pointer}
+</style>{% endblock %}
+{% block body %}{% include "_adminnav.html" %}
+<div class="row" style="margin-bottom:12px"><h1 class="grow" style="margin:0">Дашборд</h1>
+<select id="lesson" style="padding:8px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--fg);font:inherit">
+<option value="0">Урок с последней активностью</option>
+{% for l in lessons %}<option value="{{ l.id }}">{{ l.title }}</option>{% endfor %}</select>
+<select id="group" style="padding:8px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--fg);font:inherit">
+<option value="-2">Занимающиеся сейчас</option><option value="0">Все группы</option>{% for g in study_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}<option value="-1">Без группы</option></select>
+<span class="mut" id="upd">—</span></div>
+
+<div class="kpis" id="kpis"></div>
+
+<div class="cols">
+<div>
+<div class="card"><div class="row"><h2 class="grow" style="margin:0" id="ltitle">Ученики × задачи</h2>
+<label class="mut"><input type="checkbox" id="byScore"> сортировать по решённым</label></div>
+<div class="scroll" style="margin-top:10px"><table class="grid" id="grid"></table></div>
+<p class="mut" style="font-size:13px">✓ — решено (число — попыток); 7/15 — лучший результат по тестам; ● — ученик на сайте в последние 5 минут. Клик по ячейке — последняя посылка.</p></div>
+<div class="card"><h2>Задачи урока</h2><table id="tstats"></table></div>
+</div>
+<div>
+<div class="card"><h2>Нужна помощь</h2><p class="mut" style="font-size:13px;margin-top:-6px">3+ неудачных попытки, задача не решена</p><table class="help" id="help"></table></div>
+<div class="card"><h2>Посылки по минутам</h2><div class="bars" id="bars"></div><p class="mut" style="font-size:12px">последние 30 минут · зелёным — принятые</p></div>
+<div class="card"><h2>Лента посылок</h2><table class="feed" id="feed"></table></div>
+</div></div>
+
+<script>
+const V = {{ verdicts_js | tojson }};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtUp = s => s < 3600 ? Math.floor(s/60) + ' мин' : Math.floor(s/3600) + ' ч ' + Math.floor(s%3600/60) + ' мин';
+let prev = {}, sel = '0', gsel = '{{ -2 if active_groups else 0 }}';
+try { sel = localStorage.getItem('dash_lesson') || '0'; } catch (e) {}
+$('lesson').value = sel; if (!$('lesson').value) { sel = '0'; $('lesson').value = '0'; }
+$('group').value = gsel;
+$('group').onchange = e => { gsel = e.target.value; prev = {}; load(); };
+$('lesson').onchange = e => { sel = e.target.value; try { localStorage.setItem('dash_lesson', sel); } catch (e) {} prev = {}; load(); };
+$('byScore').onchange = () => load();
+
+function kpi(label, value, sub, level) {
+  return `<div class="kpi ${level||''}"><div class="l">${label}</div><div class="n">${value}</div><div class="s">${sub||''}</div></div>`;
+}
+
+function render(d) {
+  const s = d.server;
+  $('upd').textContent = 'обновлено ' + d.now;
+  $('kpis').innerHTML = [
+    kpi('Сейчас занимаются', s.active_groups.length ? s.active_groups.length + (s.active_groups.length === 1 ? ' группа' : ' группы') : '—',
+        s.active_groups.length ? esc(s.active_groups.join(', ')) : 'группа не выбрана!', s.active_groups.length ? '' : 'warn'),
+    kpi('Учеников онлайн', s.online, 'за 5 минут'),
+    kpi('Очередь', s.queued, `проверяется ${s.running} из ${s.workers}`, s.queued > 20 ? 'bad' : s.queued > 5 ? 'warn' : ''),
+    kpi('Ожидание вердикта', s.wait_avg + ' с', 'макс ' + s.wait_max + ' с (10 мин)', s.wait_max > 60 ? 'bad' : s.wait_max > 20 ? 'warn' : ''),
+    kpi('Посылок', s.last5, `за 5 мин · ${s.last60} за час · ${s.total} всего`),
+    kpi('CPU', Math.round(s.cpu) + '%', `load ${s.load.toFixed(1)} / ${s.ncpu} ядер`, s.cpu > 90 ? 'bad' : s.cpu > 70 ? 'warn' : ''),
+    kpi('Память', Math.round(s.mem) + '%', 'диск свободно ' + s.disk_free_gb + ' ГБ', s.mem > 92 ? 'bad' : s.mem > 85 ? 'warn' : ''),
+    kpi('Docker', s.docker_ok ? 'OK' : 'нет', `контейнеров: ${s.containers}`, s.docker_ok ? '' : 'bad'),
+    kpi('Ошибки системы', s.se60, 'за час (вердикт SE)', s.se60 ? 'bad' : ''),
+    kpi('Сервер работает', fmtUp(s.uptime), ''),
+  ].join('');
+
+  // посылки по минутам
+  const now = new Date(), mins = [];
+  for (let i = 29; i >= 0; i--) { const t = new Date(now - i * 60000); mins.push(t.toTimeString().slice(0, 5)); }
+  const pm = Object.fromEntries(s.per_min.map(r => [r.m, r]));
+  const mx = Math.max(1, ...s.per_min.map(r => r.c));
+  $('bars').innerHTML = mins.map(m => { const r = pm[m] || {c: 0, ok: 0};
+    return `<div title="${m}: ${r.c} посылок, ${r.ok} принято" style="height:${r.c / mx * 100}%"><i style="height:${r.c ? r.ok / r.c * 100 : 0}%"></i></div>`; }).join('');
+
+  if (sel === '0') $('lesson').value = '0';
+  const opt = [...$('lesson').options].find(o => o.value == d.lesson);
+  $('ltitle').textContent = opt ? opt.text : 'Ученики × задачи';
+
+  // таблица ученики × задачи
+  const cell = {}; d.cells.forEach(c => cell[c.student_id + ':' + c.task_id] = c);
+  const solved = st => d.tasks.filter(t => (cell[st.id + ':' + t.id] || {}).solved).length;
+  const students = [...d.students];
+  if ($('byScore').checked) students.sort((a, b) => solved(b) - solved(a) || a.name.localeCompare(b.name));
+  let h = '<tr><th>Ученик</th>' + d.tasks.map((t, i) => `<th title="${esc(t.title)}">${i + 1}</th>`).join('') + '<th>Решено</th></tr>';
+  const cur = {};
+  for (const st of students) {
+    h += `<tr><td><span class="dot ${st.online ? 'on' : ''}"></span><a href="/admin/submissions?student=${st.id}">${esc(st.name)}</a>${st.group_name ? ` <span class="mut" style="font-size:12px">${esc(st.group_name)}</span>` : ''}</td>`;
+    for (const t of d.tasks) {
+      const c = cell[st.id + ':' + t.id], key = st.id + ':' + t.id;
+      if (!c) { h += '<td></td>'; continue; }
+      cur[key] = c.last_id;
+      const fresh = prev[key] !== undefined && prev[key] !== c.last_id ? ' fresh' : '';
+      let cls, txt;
+      if (c.solved) { cls = 'ok'; txt = '✓' + (c.attempts > 1 ? ' ' + c.attempts : ''); }
+      else if (c.pending) { cls = 'q'; txt = '…'; }
+      else { cls = 'bad'; txt = `${c.best_passed}/${c.last_total || 0} ×${c.attempts}`; }
+      h += `<td><a class="c ${cls}${fresh}" href="/submission/${c.last_id}" title="${esc(t.title)} · попыток: ${c.attempts} · последняя: ${esc(c.last_at)} · ${esc(V[c.last_verdict] || 'проверяется')}">${txt}</a></td>`;
+    }
+    h += `<td><b>${solved(st)}</b> / ${d.tasks.length}</td></tr>`;
+  }
+  if (!students.length) h += '<tr><td colspan="99" class="mut">По этому уроку посылок пока нет</td></tr>';
+  $('grid').innerHTML = h;
+  prev = cur;
+
+  // статистика по задачам
+  const n = Math.max(1, d.students.length);
+  $('tstats').innerHTML = '<tr><th>#</th><th>Задача</th><th>Пытались</th><th>Решили</th><th style="width:30%"></th></tr>' + d.tasks.map((t, i) => {
+    const cs = d.cells.filter(c => c.task_id === t.id), ok = cs.filter(c => c.solved).length;
+    return `<tr><td>${i + 1}</td><td><a href="/admin/task/${t.id}">${esc(t.title)}</a></td><td>${cs.length}</td><td>${ok}</td>
+      <td><div class="tbar"><i style="width:${ok / n * 100}%"></i></div></td></tr>`; }).join('');
+
+  // нужна помощь
+  const names = Object.fromEntries(d.students.map(s => [s.id, s.name]));
+  const titles = Object.fromEntries(d.tasks.map((t, i) => [t.id, (i + 1) + '. ' + t.title]));
+  const stuck = d.cells.filter(c => !c.solved && c.attempts >= 3).sort((a, b) => b.attempts - a.attempts);
+  $('help').innerHTML = stuck.length ? stuck.map(c => `<tr><td>${esc(names[c.student_id])}</td><td class="mut">${esc(titles[c.task_id])}</td>
+      <td><a class="c bad" href="/submission/${c.last_id}">×${c.attempts}</a></td></tr>`).join('') : '<tr><td class="mut">Никто не застрял 🎉</td></tr>';
+
+  // лента
+  $('feed').innerHTML = d.feed.map(f => {
+    const v = f.status !== 'done' ? '<span class="v v-q">…</span>' :
+      `<span class="v v-${f.verdict}">${f.verdict}${['CE','SE'].includes(f.verdict) ? '' : ' ' + f.passed + '/' + f.total}</span>`;
+    return `<tr><td class="mut">${f.t}</td><td>${esc(f.name)}</td><td class="mut">${esc(f.task)}</td><td><a href="/submission/${f.id}" style="text-decoration:none">${v}</a></td></tr>`;
+  }).join('') || '<tr><td class="mut">Пока пусто</td></tr>';
+}
+
+async function load() {
+  try {
+    const r = await fetch('/admin/api/dashboard?lesson=' + sel + '&group=' + gsel, {credentials: 'same-origin'});
+    if (r.status === 403) { location.href = '/admin/login'; return; }
+    render(await r.json());
+  } catch (e) { $('upd').textContent = 'нет связи с сервером…'; }
+}
+load(); setInterval(load, 3000);
+</script>
+{% endblock %}

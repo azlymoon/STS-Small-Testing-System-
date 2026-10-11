@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block body %}{% include "_adminnav.html" %}
+<div class="card"><h1>Группы</h1>
+<p class="mut">Отметьте группы, которые занимаются сейчас (можно несколько). Если занимается одна группа — все посылки попадут в неё. Если несколько — ученик при входе выберет свою группу. После занятия нажмите «Закончить».</p>
+<table><tr><th>Группа</th><th>Год</th><th>Учеников</th><th>Посылок</th><th>Решено задач</th><th></th></tr>
+{% for g in group_rows %}<tr {% if g.archived %}class="mut"{% endif %}><td><a href="/admin/group/{{ g.id }}"><b>{{ g.name }}</b></a>{% if g.is_active %} <span class="v v-OK">занимается</span>{% endif %}{% if g.archived %} (архив){% endif %}</td>
+<td>{{ g.grp }}</td><td>{{ g.nstudents }}</td><td>{{ g.nsubs }}</td><td>{{ g.nsolved }}</td><td class="row" style="gap:8px">{% if not g.archived %}<form method="post" action="/admin/group/{{ g.id }}/active"><input type="hidden" name="on" value="{{ 0 if g.is_active else 1 }}"><button class="{{ 'sec' if g.is_active else '' }}" style="padding:4px 10px">{{ 'Закончить' if g.is_active else 'Начать занятие' }}</button></form>{% endif %}<a href="/admin/group/{{ g.id }}/csv">CSV</a></td></tr>
+{% else %}<tr><td colspan="6" class="mut">Групп пока нет — создайте ниже.</td></tr>{% endfor %}</table>
+{% if active_groups %}<form method="post" action="/admin/active-groups/clear" style="margin-top:10px"><button class="sec">Закончить занятие у всех групп</button></form>{% endif %}</div>
+<div class="card"><h2>Новая группа</h2>
+<form method="post" action="/admin/groups">
+<p><input type="text" name="name" placeholder="Название, например «1 год · Пн 16:00»" required></p>
+<p><input type="text" name="grp" list="years" placeholder="Год (вкладка уроков), например «1 год»"><datalist id="years">{% for y in years %}<option value="{{ y }}">{% endfor %}</datalist></p>
+<p><label><input type="checkbox" name="make_active" value="1" checked> сразу начать занятие</label></p>
+<button>Создать</button></form></div>{% endblock %}

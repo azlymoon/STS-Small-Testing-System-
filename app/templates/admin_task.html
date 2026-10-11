@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block body %}{% include "_adminnav.html" %}
+<p><a href="/admin/lesson/{{ lesson.id }}">← {{ lesson.title }}</a> · <a href="/lesson/{{ lesson.slug }}/task/{{ task.id }}">как видит ученик</a> · <a href="/admin/submissions?task={{ task.id }}">посылки</a></p>
+<div class="card"><h1>{{ task.title }}</h1>
+<form method="post"><p><input type="text" name="title" value="{{ task.title }}"></p>
+<p class="mut">Условие (Markdown, код — в блоке ```cpp … ```):</p><p><textarea name="statement" class="code" style="min-height:260px">{{ task.statement }}</textarea></p>
+<div class="row"><label>TL, с <input type="number" step="0.1" name="time_limit" value="{{ task.time_limit }}" style="width:90px"></label>
+<label>Порядок <input type="number" name="pos" value="{{ task.pos }}" style="width:90px"></label><button>Сохранить</button></div></form></div>
+
+<div class="card"><h2>Тесты ({{ tests | length }})</h2>
+<form method="post" action="/admin/task/{{ task.id }}/rejudge" onsubmit="return confirm('Перепроверить все посылки по задаче?')"><button class="sec">Перепроверить все посылки</button></form>
+<table><tr><th>#</th><th>Вход</th><th>Выход</th><th></th></tr>
+{% for t in tests %}<tr><td>{{ loop.index }}{% if t.is_sample %}<br><span class="mut">пример</span>{% endif %}</td>
+<td><pre style="max-height:120px">{{ t.input[:500] }}{% if t.input|length > 500 %}…{% endif %}</pre></td><td><pre style="max-height:120px">{{ t.output[:500] }}{% if t.output|length > 500 %}…{% endif %}</pre></td>
+<td><form method="post" action="/admin/test/{{ t.id }}/delete"><button class="sec">×</button></form></td></tr>{% endfor %}</table></div>
+
+<div class="card"><h2>Добавить тесты</h2>
+<form method="post" action="/admin/task/{{ task.id }}/tests" enctype="multipart/form-data">
+<p class="row"><span class="mut">ZIP-архив (1.in/1.out, 01/01.a или input1.txt/output1.txt):</span><input type="file" name="archive" accept=".zip">
+<label><input type="checkbox" name="replace" value="1"> заменить все не-примеры</label></p>
+<div class="row" style="align-items:flex-start"><div class="grow"><p class="mut">или один тест — вход:</p><textarea name="input" class="code" style="min-height:100px"></textarea></div>
+<div class="grow"><p class="mut">выход:</p><textarea name="output" class="code" style="min-height:100px"></textarea></div></div>
+<p class="row"><label><input type="checkbox" name="is_sample" value="1"> показывать в условии как пример</label><span class="grow"></span><button>Добавить</button></p></form></div>
+<form method="post" action="/admin/task/{{ task.id }}/delete" onsubmit="return confirm('Удалить задачу?')"><button class="danger">Удалить задачу</button></form>
+{% endblock %}

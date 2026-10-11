@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}МШП · Проверка задач{% endblock %}</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1d2330;--mut:#6b7280;--line:#e3e6ea;--acc:#2563eb;--ok:#15803d;--okbg:#dcfce7;--bad:#b91c1c;--badbg:#fee2e2;--wait:#92400e;--waitbg:#fef3c7;--code:#f3f4f6}
+@media (prefers-color-scheme:dark){:root{--bg:#111318;--card:#1a1d24;--fg:#e5e7eb;--mut:#9ca3af;--line:#2c313b;--acc:#60a5fa;--ok:#4ade80;--okbg:#14321f;--bad:#f87171;--badbg:#3b1717;--wait:#fbbf24;--waitbg:#3a2c0c;--code:#22262e}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+header .brand{font-weight:700;color:var(--fg);text-decoration:none}header .sp{flex:1}header a{color:var(--acc);text-decoration:none}
+main{max-width:1100px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+a{color:var(--acc)}h1{font-size:22px;margin:0 0 12px}h2{font-size:18px;margin:0 0 10px}h3{font-size:16px;margin:18px 0 6px}
+pre,code,textarea.code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
+pre{background:var(--code);padding:10px;border-radius:6px;overflow:auto;margin:6px 0;white-space:pre-wrap;word-break:break-word}
+input[type=text],input[type=password],input[type=number],textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit}
+textarea.code{min-height:320px;tab-size:4}
+button,.btn{background:var(--acc);color:#fff;border:0;border-radius:6px;padding:8px 14px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block}
+button.sec{background:transparent;color:var(--acc);border:1px solid var(--line)}button.danger{background:var(--bad)}
+table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}th{color:var(--mut);font-weight:600;font-size:13px}
+.v{display:inline-block;padding:1px 8px;border-radius:999px;font-size:13px;font-weight:600;white-space:nowrap}
+.v-OK{background:var(--okbg);color:var(--ok)}.v-WA,.v-RE,.v-ML,.v-TLE,.v-CE,.v-SE{background:var(--badbg);color:var(--bad)}.v-SK{background:var(--code);color:var(--mut)}.v-None,.v-q{background:var(--waitbg);color:var(--wait)}
+.mut{color:var(--mut)}.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}.grow{flex:1}
+.err{background:var(--badbg);color:var(--bad);padding:8px 12px;border-radius:6px;margin-bottom:12px}
+.layout{display:grid;grid-template-columns:220px 1fr;gap:16px}.side a{display:block;padding:4px 0}
+@media (max-width:760px){.layout{grid-template-columns:1fr}}
+.samples td{width:50%}.scroll{overflow-x:auto}
+.statement table{width:auto}.statement pre{font-size:13px}
+.tabs{display:flex;gap:6px}.tabs a{padding:6px 16px;border-radius:999px;border:1px solid var(--line);color:var(--fg);font-weight:600;font-size:16px}
+.tabs a.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.lessons a{display:block;padding:12px 14px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px;font-size:17px;text-decoration:none}
+.lessons a:hover{border-color:var(--acc)}
+details.test{border-bottom:1px solid var(--line)}details.test>summary{display:flex;gap:12px;align-items:center;padding:8px 4px;cursor:pointer;list-style:none}
+details.test>summary::-webkit-details-marker{display:none}details.test>summary::before{content:"▸";color:var(--mut);width:10px}
+details.test[open]>summary::before{content:"▾"}details.test .body{padding:0 4px 12px 26px}
+.grid td,.grid th{text-align:center;white-space:nowrap}.grid td:first-child,.grid th:first-child{text-align:left}
+</style>{% block head %}{% endblock %}</head>
+<body>{% set active_grp = (lesson.grp if lesson is defined and lesson and lesson.grp else cur_grp) %}
+<header><a class="brand" href="/">МШП · Проверка задач</a>
+{% if groups %}<nav class="tabs">{% for g in groups %}<a href="/?g={{ g | urlencode }}" class="{{ 'on' if g == active_grp }}">{{ g }}</a>{% endfor %}</nav>{% endif %}
+<span class="sp"></span>
+{% if student %}{% if my_group %}<span class="v v-SK" title="Ваша группа">{{ my_group.name }}</span>{% if active_groups | length > 1 %}<a href="/choose-group?next=/" style="font-size:13px">сменить</a>{% endif %}{% endif %}<span>{{ student.name }}</span> <a href="/logout">выйти</a>{% endif %}
+{% if is_admin %}<a href="/admin">админка</a> <a href="/admin/logout">выйти из админки</a>{% endif %}
+</header><main>{% block body %}{% endblock %}</main></body></html>

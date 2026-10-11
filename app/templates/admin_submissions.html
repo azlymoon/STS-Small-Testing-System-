@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% from "_verdict.html" import v %}
+{% block head %}<meta http-equiv="refresh" content="15">{% endblock %}
+{% block body %}{% include "_adminnav.html" %}
+<div class="card"><h1>Посылки</h1><table><tr><th>#</th><th>Время</th><th>Ученик</th><th>Группа</th><th>Задача</th><th>Результат</th></tr>
+{% for s in subs %}<tr><td><a href="/submission/{{ s.id }}">{{ s.id }}</a></td><td>{{ s.created_at }}</td>
+<td><a href="/admin/submissions?student={{ s.student_id }}">{{ s.student_name }}</a></td><td>{% if s.group_id %}<a href="/admin/submissions?group={{ s.group_id }}">{{ s.group_name }}</a>{% else %}<span class="mut">—</span>{% endif %}</td><td><a href="/admin/submissions?task={{ s.task_id }}">{{ s.task_title }}</a></td><td>{{ v(s) }}</td></tr>
+{% else %}<tr><td colspan="6" class="mut">Нет посылок</td></tr>{% endfor %}</table></div>{% endblock %}

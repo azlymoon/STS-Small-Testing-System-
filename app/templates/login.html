@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block body %}
+<div class="card" style="max-width:480px;margin:40px auto">
+<h1>{% if lesson %}{{ lesson.title }}{% else %}Вход{% endif %}</h1>
+<p class="mut">Введите фамилию и имя полностью, например: <b>Иванов Пётр</b>. Используйте одно и то же написание на всех уроках.</p>
+{% if error %}<div class="err">{{ error }}</div>{% endif %}
+<form method="post" action="/login"><input type="hidden" name="next" value="{{ next }}">
+<p><input type="text" name="name" value="{{ name or '' }}" placeholder="Фамилия Имя" autofocus required></p>
+{% if active_groups | length > 1 %}<p><select name="group_id" required style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit">
+<option value="">— выберите свою группу —</option>{% for g in active_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select></p>{% endif %}
+<button>Войти</button></form></div>{% endblock %}

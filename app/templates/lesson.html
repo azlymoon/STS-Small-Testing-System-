@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% from "_verdict.html" import v %}{% block body %}
+<div class="card"><p><a href="/">← все уроки</a></p><h1>{{ lesson.title | no_grp(lesson.grp) }}</h1>
+<table><tr><th>#</th><th>Задача</th><th>Результат</th></tr>
+{% for t in tasks %}<tr><td>{{ loop.index }}</td><td><a href="/lesson/{{ lesson.slug }}/task/{{ t.id }}">{{ t.title }}</a></td>
+<td>{% if best[t.id] %}<a href="/submission/{{ best[t.id].id }}" style="text-decoration:none">{{ v(best[t.id]) }}</a>{% else %}<span class="mut">не сдавалась</span>{% endif %}</td></tr>{% endfor %}
+</table></div>{% endblock %}

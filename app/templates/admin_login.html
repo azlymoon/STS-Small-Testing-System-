@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% block body %}
+<div class="card" style="max-width:400px;margin:40px auto"><h1>Вход для преподавателя</h1>
+{% if error %}<div class="err">{{ error }}</div>{% endif %}
+<form method="post"><p><input type="password" name="password" placeholder="Пароль" autofocus></p><button>Войти</button></form></div>{% endblock %}

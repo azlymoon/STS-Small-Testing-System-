@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block body %}
+<div class="card"><h1>{% if cur_grp %}{{ cur_grp }}: уроки{% else %}Уроки{% endif %}</h1>
+{% if not cur_grp and groups %}<p class="mut">Выберите свой год обучения во вкладках сверху.</p>{% endif %}
+<div class="lessons">
+{% for l in lessons %}{% if not cur_grp and (loop.first or l.grp != loop.previtem.grp) %}<h2 style="margin-top:12px">{{ l.grp or 'Другое' }}</h2>{% endif %}
+<a href="/lesson/{{ l.slug }}">{{ l.title | no_grp(l.grp) }}</a>
+{% else %}<p class="mut">Пока нет открытых уроков.</p>{% endfor %}</div>
+</div>{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% from "_verdict.html" import v %}{% block body %}{% include "_adminnav.html" %}
+<div class="card"><h1>{{ lesson.title }}</h1>
+<p>Ссылка для учеников: <a href="/lesson/{{ lesson.slug }}"><b>{{ base }}/lesson/{{ lesson.slug }}</b></a></p>
+<form method="post" enctype="multipart/form-data">
+<p><input type="text" name="title" value="{{ lesson.title }}"></p>
+<p class="row"><span class="mut">Вкладка (год):</span><input type="text" name="grp" value="{{ lesson.grp }}" list="grps" style="width:200px"><datalist id="grps">{% for g in all_groups %}<option value="{{ g }}">{% endfor %}</datalist></p>
+<div class="row"><label><input type="checkbox" name="is_open" value="1" {% if lesson.is_open %}checked{% endif %}> открыт для учеников</label>
+<span class="mut">добавить задачи из .docx:</span><input type="file" name="docx" accept=".docx"><button>Сохранить</button></div></form></div>
+
+<div class="card"><div class="row"><h2 class="grow" style="margin:0">Результаты</h2>
+<form method="get" class="row" style="gap:6px"><span class="mut">группа:</span><select name="group" onchange="this.form.submit()" style="padding:4px 6px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--fg);font:inherit">
+<option value="0">все</option>{% for g in all_study_groups %}<option value="{{ g.id }}" {% if group == g.id %}selected{% endif %}>{{ g.name }}</option>{% endfor %}<option value="-1" {% if group == -1 %}selected{% endif %}>без группы</option></select></form></div>
+<div class="scroll" style="margin-top:8px"><table class="grid">
+<tr><th>Ученик</th>{% for t in tasks %}<th title="{{ t.title }}"><a href="/admin/task/{{ t.id }}">{{ loop.index }}</a></th>{% endfor %}<th>Решено</th></tr>
+{% for st in students %}{% set row = table[st.id] %}<tr><td><a href="/admin/submissions?student={{ st.id }}&lesson={{ lesson.id }}">{{ st.name }}</a></td>
+{% for t in tasks %}<td>{% if row[t.id] %}<a href="/submission/{{ row[t.id].id }}" style="text-decoration:none">{% if row[t.id].status != 'done' %}<span class="v v-q">…</span>{% elif row[t.id].verdict == 'OK' %}<span class="v v-OK">+</span>{% else %}<span class="v v-{{ row[t.id].verdict }}">{{ row[t.id].verdict }} {{ row[t.id].passed }}/{{ row[t.id].total }}</span>{% endif %}</a>{% endif %}</td>{% endfor %}
+<td><b>{{ row.values() | selectattr('verdict', 'equalto', 'OK') | list | length }}</b></td></tr>{% else %}<tr><td colspan="99" class="mut">Посылок пока нет</td></tr>{% endfor %}
+</table></div><p><a href="/admin/submissions?lesson={{ lesson.id }}{% if group %}&group={{ group }}{% endif %}">Все посылки урока</a></p></div>
+
+<div class="card"><h2>Задачи</h2><table><tr><th>#</th><th>Задача</th><th>Тестов</th><th>TL</th></tr>
+{% for t in tasks %}<tr><td>{{ t.pos }}</td><td><a href="/admin/task/{{ t.id }}">{{ t.title }}</a></td><td>{{ t.ntests }}</td><td>{{ t.time_limit }} с</td></tr>{% endfor %}</table>
+<form method="post" action="/admin/lesson/{{ lesson.id }}/tasks" class="row" style="margin-top:12px"><input class="grow" type="text" name="title" placeholder="Название новой задачи" required style="width:auto"><button>Добавить задачу</button></form></div>
+<form method="post" action="/admin/lesson/{{ lesson.id }}/delete" onsubmit="return confirm('Удалить урок со всеми задачами и посылками?')"><button class="danger">Удалить урок</button></form>
+{% endblock %}

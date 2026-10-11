@@ -1,0 +1,1 @@
+{% macro v(sub) %}{% if sub.status != 'done' %}<span class="v v-q">{{ 'Проверяется' if sub.status == 'running' else 'В очереди' }}</span>{% else %}<span class="v v-{{ sub.verdict }}">{{ VERDICTS[sub.verdict] }}{% if sub.verdict not in ('CE','SE') %} · {{ sub.passed }}/{{ sub.total }}{% endif %}</span>{% endif %}{% endmacro %}
