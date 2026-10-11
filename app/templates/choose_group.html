@@ -3,5 +3,5 @@
 <h1>Выберите свою группу</h1>
 <p class="mut">Сейчас занимаются несколько групп. Выберите ту, в которой вы учитесь, — от этого зависит, куда попадут ваши решения.</p>
 <form method="post" action="/choose-group"><input type="hidden" name="next" value="{{ next }}">
-{% for g in active_groups %}<p><button name="group_id" value="{{ g.id }}" style="width:100%;text-align:left;font-size:17px;padding:12px 14px">{{ g.name }}</button></p>{% endfor %}
+{% for g in choices %}<p><button name="group_id" value="{{ g.id }}" style="width:100%;text-align:left;font-size:17px;padding:12px 14px">{{ g.name }}</button></p>{% endfor %}
 </form></div>{% endblock %}

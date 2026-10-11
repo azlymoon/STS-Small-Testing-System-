@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block body %}
+<div class="card" style="max-width:520px;margin:40px auto">
+<h1>Это урок другого года</h1>
+<p>Урок «{{ lesson.title }}» — для <b>{{ lesson.grp }}</b>, а вы учитесь: <b>{{ student.grp }}</b>.</p>
+<p><a class="btn" href="/">← к урокам {{ student.grp }}</a></p>
+<p class="mut">Если год выбран неправильно — скажите преподавателю, он исправит.</p></div>{% endblock %}

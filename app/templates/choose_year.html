@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block body %}
+<div class="card" style="max-width:520px;margin:40px auto">
+<h1>Выберите свой год обучения</h1>
+<p class="mut">Вы будете видеть только уроки своего года.</p>
+<div class="err" style="background:var(--waitbg);color:var(--wait)"><b>Выбрать можно только один раз.</b> Если ошиблись — скажите преподавателю, он исправит.</div>
+<form method="post" action="/choose-year"><input type="hidden" name="next" value="{{ next }}">
+{% for y in years %}<p><button name="grp" value="{{ y }}" style="width:100%;font-size:20px;padding:14px" onclick="return confirm('Вы учитесь: {{ y }}? Изменить потом сможет только преподаватель.')">{{ y }}</button></p>{% endfor %}
+</form></div>{% endblock %}

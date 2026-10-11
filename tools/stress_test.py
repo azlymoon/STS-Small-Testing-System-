@@ -66,11 +66,22 @@ async def student(i, start_evt):
     (task_id, slug), code, expected = PLAN[i % len(PLAN)]
     name = f"{PREFIX}{i:02d} Ученик"
     async with httpx.AsyncClient(base_url=BASE, timeout=30, follow_redirects=False) as c:
-        r = await req(c, "GET", f"/lesson/{slug}")
-        # если занимаются несколько групп — на форме входа есть выбор группы; берём по кругу
-        opts = re.findall(r'<option value="(\d+)">', r.text.split('name="group_id"', 1)[1]) if 'name="group_id"' in r.text else []
-        group_id = int(opts[i % len(opts)]) if opts else None
-        await req(c, "POST", "/login", data={"name": name, "next": f"/lesson/{slug}", **({"group_id": group_id} if group_id else {})})
+        await req(c, "GET", f"/lesson/{slug}")
+        await req(c, "POST", "/login", data={"name": name, "next": f"/lesson/{slug}"})
+        group_id = None
+        for _ in range(3):  # первый вход: выбор года, затем (если групп несколько) выбор группы
+            r = await req(c, "GET", f"/lesson/{slug}")
+            loc = r.headers.get("location", "")
+            if "/choose-year" in loc:
+                grp = con.execute("SELECT grp FROM lessons WHERE slug=?", (slug,)).fetchone()[0]
+                await req(c, "POST", "/choose-year", data={"grp": grp, "next": f"/lesson/{slug}"})
+            elif "/choose-group" in loc:
+                page = await req(c, "GET", loc)
+                opts = re.findall(r'name="group_id" value="(\d+)"', page.text)
+                group_id = int(opts[i % len(opts)])
+                await req(c, "POST", "/choose-group", data={"group_id": group_id, "next": f"/lesson/{slug}"})
+            else:
+                break
         r = await req(c, "GET", f"/lesson/{slug}")
         assert name in r.text, f"{name}: не вошёл"
         await req(c, "GET", f"/lesson/{slug}/task/{task_id}")

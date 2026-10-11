@@ -63,7 +63,9 @@ def lesson_groups():
 
 def render(request, template, **ctx):
     ctx.setdefault("student", current_student(request))
-    ctx.setdefault("groups", lesson_groups())
+    st = ctx["student"]
+    # ученик с выбранным годом видит только свою вкладку
+    ctx.setdefault("groups", [st["grp"]] if st and st["grp"] and not request.session.get("admin") else lesson_groups())
     ctx.setdefault("cur_grp", request.session.get("grp", ""))
     ctx["is_admin"] = request.session.get("admin") is True
     ctx["active_groups"] = active = db.active_groups()
@@ -106,9 +108,17 @@ def current_student(request):
     return st
 
 
-def student_group(st, active=None):
-    """Группа ученика среди занимающихся сейчас. Если занимается одна группа — она."""
+def groups_for(st, active=None):
+    """Занимающиеся сейчас группы, доступные ученику: только его года (и группы без года)."""
     active = db.active_groups() if active is None else active
+    if not st or not st["grp"]:
+        return active
+    return [g for g in active if not g["grp"] or g["grp"] == st["grp"]]
+
+
+def student_group(st, active=None):
+    """Группа ученика среди занимающихся сейчас (его года). Если такая группа одна — она."""
+    active = groups_for(st, active)
     if not st or not active:
         return None
     for g in active:
@@ -119,8 +129,29 @@ def student_group(st, active=None):
 
 def must_choose_group(st):
     """Занимаются несколько групп, а ученик ещё не выбрал свою."""
-    active = db.active_groups()
+    active = groups_for(st)
     return bool(st and len(active) > 1 and student_group(st, active) is None)
+
+
+def needs_year(st):
+    """Год обучения выбирается один раз; спрашиваем, только если в системе больше одного года."""
+    return bool(st and not st["grp"] and len(lesson_groups()) > 1)
+
+
+def student_gate(request, st, lesson=None):
+    """Проверки перед страницами ученика: выбран год, выбрана группа, урок своего года.
+    Возвращает ответ-перенаправление или None, если всё в порядке."""
+    if request.session.get("admin"):
+        return None
+    if needs_year(st):
+        return go("/choose-year?next=" + quote(request.url.path))
+    if must_choose_group(st):
+        return choose_group_redirect(request)
+    if lesson is not None and lesson["grp"] and st["grp"] and lesson["grp"] != st["grp"]:
+        resp = render(request, "wrong_year.html", lesson=lesson)
+        resp.status_code = 403
+        return resp
+    return None
 
 
 def choose_group_redirect(request):
@@ -175,6 +206,13 @@ def screen(request: Request):
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request, g: str | None = None):
+    st = current_student(request)
+    if not st and not request.session.get("admin"):
+        return render(request, "login.html", next="/")
+    if st and (gate := student_gate(request, st)):
+        return gate
+    if st and st["grp"] and not request.session.get("admin"):
+        g = st["grp"]  # ученик видит только свой год
     if g is not None:
         request.session["grp"] = g
     grp = request.session.get("grp")
@@ -183,6 +221,8 @@ def index(request: Request, g: str | None = None):
         active = db.active_groups()
         grp = g["grp"] if g else (active[0]["grp"] if len(active) == 1 else "")
     groups = lesson_groups()
+    if st and st["grp"] and not request.session.get("admin"):
+        groups = [st["grp"]]
     if grp and grp not in groups:
         grp = ""
     lessons = q("SELECT * FROM lessons WHERE is_open=1 AND (?='' OR grp=?)", grp, grp)
@@ -202,8 +242,30 @@ def login(request: Request, name: str = Form(""), next: str = Form("/"), group_i
         ex("INSERT INTO students(name, name_key, token) VALUES(?,?,?)", name, key, secrets.token_hex(16))
         st = q("SELECT * FROM students WHERE name_key=?", key, one=True)
     request.session["student"] = st["token"]
-    if group_id and any(g["id"] == group_id for g in db.active_groups()):
-        ex("UPDATE students SET group_id=? WHERE id=?", group_id, st["id"])
+    request.session.pop("grp", None)
+    next = next if next.startswith("/") else "/"
+    if needs_year(st):
+        return go("/choose-year?next=" + quote(next))
+    return go(next)
+
+
+@app.get("/choose-year", response_class=HTMLResponse)
+def choose_year_page(request: Request, next: str = "/"):
+    st = current_student(request)
+    next = next if next.startswith("/") else "/"
+    if not st:
+        return go("/")
+    if st["grp"]:  # год уже выбран — поменять может только преподаватель
+        return go(next)
+    return render(request, "choose_year.html", next=next, years=lesson_groups())
+
+
+@app.post("/choose-year")
+def choose_year(request: Request, grp: str = Form(...), next: str = Form("/")):
+    st = current_student(request)
+    if st and not st["grp"] and grp in lesson_groups():
+        ex("UPDATE students SET grp=? WHERE id=? AND grp=''", grp, st["id"])
+        request.session["grp"] = grp
     return go(next if next.startswith("/") else "/")
 
 
@@ -211,13 +273,14 @@ def login(request: Request, name: str = Form(""), next: str = Form("/"), group_i
 def choose_group_page(request: Request, next: str = "/"):
     if not current_student(request):
         return go("/")
-    return render(request, "choose_group.html", next=next if next.startswith("/") else "/")
+    return render(request, "choose_group.html", next=next if next.startswith("/") else "/",
+                  choices=groups_for(current_student(request)))
 
 
 @app.post("/choose-group")
 def choose_group(request: Request, group_id: int = Form(...), next: str = Form("/")):
     st = current_student(request)
-    if st and any(g["id"] == group_id for g in db.active_groups()):
+    if st and any(g["id"] == group_id for g in groups_for(st)):
         ex("UPDATE students SET group_id=? WHERE id=?", group_id, st["id"])
         g = q("SELECT grp FROM groups WHERE id=?", group_id, one=True)
         if g and g["grp"]:
@@ -237,8 +300,8 @@ def lesson_page(request: Request, slug: str):
     st = current_student(request)
     if not st:
         return render(request, "login.html", next=request.url.path, lesson=lesson)
-    if must_choose_group(st):
-        return choose_group_redirect(request)
+    if gate := student_gate(request, st, lesson):
+        return gate
     if lesson["grp"]:
         request.session["grp"] = lesson["grp"]
     tasks = q("SELECT * FROM tasks WHERE lesson_id=? ORDER BY pos, id", lesson["id"])
@@ -252,8 +315,8 @@ def task_page(request: Request, slug: str, task_id: int, error: str = ""):
     st = current_student(request)
     if not st:
         return render(request, "login.html", next=request.url.path, lesson=lesson)
-    if must_choose_group(st):
-        return choose_group_redirect(request)
+    if gate := student_gate(request, st, lesson):
+        return gate
     task = q("SELECT * FROM tasks WHERE id=? AND lesson_id=?", task_id, lesson["id"], one=True)
     if not task:
         raise HTTPException(404)
@@ -286,8 +349,8 @@ async def submit(request: Request, slug: str, task_id: int, code: str = Form("")
     if q("SELECT COUNT(*) c FROM submissions WHERE student_id=? AND status!='done'", st["id"], one=True)["c"] >= 3:
         return go(back + "?error=Дождитесь+проверки+предыдущих+посылок")
     request.session["last_submit"] = time.time()
-    if must_choose_group(st):
-        return choose_group_redirect(request)
+    if gate := student_gate(request, st, lesson):
+        return go(f"/lesson/{slug}/task/{task_id}") if gate.status_code == 403 else gate
     ag = student_group(st)
     gid = ag["id"] if ag else None
     sid = ex("INSERT INTO submissions(student_id, task_id, code, group_id) VALUES(?,?,?,?)", st["id"], task_id, code, gid)
@@ -530,8 +593,15 @@ def admin_students(request: Request):
     require_admin(request)
     students = q("SELECT st.*, g.name group_name, (SELECT COUNT(*) FROM submissions s WHERE s.student_id=st.id) nsubs "
                  "FROM students st LEFT JOIN groups g ON g.id=st.group_id ORDER BY st.name")
-    return render(request, "admin_students.html", students=students,
+    return render(request, "admin_students.html", students=students, years=lesson_groups(),
                   all_study_groups=q("SELECT * FROM groups ORDER BY archived, grp, name"))
+
+
+@app.post("/admin/students/{sid}/year")
+def admin_student_year(request: Request, sid: int, grp: str = Form("")):
+    require_admin(request)
+    ex("UPDATE students SET grp=? WHERE id=?", grp.strip(), sid)
+    return go("/admin/students")
 
 
 @app.post("/admin/students/{sid}")

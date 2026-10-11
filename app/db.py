@@ -87,13 +87,22 @@ def init():
     for table, col, ddl in (("submissions", "judged_at", "TEXT"), ("students", "last_seen", "TEXT"),
                             ("submissions", "group_id", "INTEGER REFERENCES groups(id) ON DELETE SET NULL"),
                             ("students", "group_id", "INTEGER REFERENCES groups(id) ON DELETE SET NULL"),
-                            ("groups", "is_active", "INTEGER NOT NULL DEFAULT 0")):
+                            ("groups", "is_active", "INTEGER NOT NULL DEFAULT 0"),
+                            ("students", "grp", "TEXT NOT NULL DEFAULT ''")):
         if col not in [r["name"] for r in con.execute(f"PRAGMA table_info({table})")]:
             con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
             if col == "is_active":  # раньше активная группа была одна и хранилась в settings
                 r = con.execute("SELECT value FROM settings WHERE key='active_group'").fetchone()
                 if r and r["value"]:
                     con.execute("UPDATE groups SET is_active=1 WHERE id=?", (int(r["value"]),))
+            if table == "students" and col == "grp":  # год уже входивших учеников: по группе или по их урокам
+                con.execute("""UPDATE students SET grp=(SELECT g.grp FROM groups g WHERE g.id=students.group_id)
+                               WHERE group_id IS NOT NULL AND (SELECT g.grp FROM groups g WHERE g.id=students.group_id) != ''""")
+                con.execute("""UPDATE students SET grp=(
+                                   SELECT MAX(l.grp) FROM submissions s JOIN tasks t ON t.id=s.task_id JOIN lessons l ON l.id=t.lesson_id
+                                   WHERE s.student_id=students.id AND l.grp!='')
+                               WHERE grp='' AND (SELECT COUNT(DISTINCT l.grp) FROM submissions s JOIN tasks t ON t.id=s.task_id
+                                   JOIN lessons l ON l.id=t.lesson_id WHERE s.student_id=students.id AND l.grp!='') = 1""")
     con.close()
 
 

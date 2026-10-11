@@ -1,7 +1,9 @@
 {% extends "base.html" %}{% block body %}{% include "_adminnav.html" %}
-<div class="card"><h1>Ученики</h1><p class="mut">«Перенести» — если ученик решал не в той группе (например, забыли переключить текущую группу). Если ученик зашёл под двумя написаниями — объедините (посылки перенесутся в выбранного).</p>
-<table><tr><th>ID</th><th>ФИО</th><th>Группа</th><th>Посылок</th><th>Действия</th></tr>
-{% for st in students %}<tr><td>{{ st.id }}</td><td><a href="/admin/submissions?student={{ st.id }}">{{ st.name }}</a></td><td>{{ st.group_name or '—' }}</td><td>{{ st.nsubs }}</td>
+<div class="card"><h1>Ученики</h1><p class="mut">Год ученик выбирает сам один раз при первом входе; изменить можно здесь («не выбран» — ученик выберет заново). «Перенести» — если ученик решал не в той группе (например, забыли переключить текущую группу). Если ученик зашёл под двумя написаниями — объедините (посылки перенесутся в выбранного).</p>
+<table><tr><th>ID</th><th>ФИО</th><th>Год</th><th>Группа</th><th>Посылок</th><th>Действия</th></tr>
+{% for st in students %}<tr><td>{{ st.id }}</td><td><a href="/admin/submissions?student={{ st.id }}">{{ st.name }}</a></td><td><form method="post" action="/admin/students/{{ st.id }}/year" class="row" style="gap:4px"><select name="grp" onchange="this.form.submit()">
+<option value="" {% if not st.grp %}selected{% endif %}>— не выбран —</option>{% for y in years %}<option value="{{ y }}" {% if st.grp == y %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></form></td>
+<td>{{ st.group_name or '—' }}</td><td>{{ st.nsubs }}</td>
 <td><form method="post" action="/admin/students/{{ st.id }}" class="row">
 <input type="text" name="name" placeholder="Новое ФИО" style="width:180px">
 <select name="merge_into"><option value="0">объединить с…</option>{% for o in students if o.id != st.id %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}</select>
